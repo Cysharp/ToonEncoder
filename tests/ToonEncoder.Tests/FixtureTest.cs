@@ -14,10 +14,10 @@ public class FixtureTest
         }
     }
 
-    public EncodeTestData[] LoadTestCases(string filePath)
+    public async Task<EncodeTestData[]> LoadTestCases(string filePath)
     {
         var fullPath = Path.Combine(Directory.GetCurrentDirectory(), filePath);
-        var json = File.ReadAllText(fullPath);
+        var json = await File.ReadAllTextAsync(fullPath);
         var fixture = JsonSerializer.Deserialize<ToonTestFixture>(json)!;
         return fixture.Tests
             .Select(x => new EncodeTestData(x))
@@ -26,7 +26,15 @@ public class FixtureTest
 
     [Test]
     [MethodDataSource(nameof(LoadTestCases), Arguments = ["fixtures/encode/primitives.json"])]
-    public async Task TestPrimitives(EncodeTestData testData)
+    public async Task Primitives(EncodeTestData testData)
+    {
+        var toon = Cysharp.AI.ToonEncoder.Encode(testData.Fixture.Input);
+        await Assert.That(toon).IsEqualTo(testData.Fixture.Expected);
+    }
+
+    [Test]
+    [MethodDataSource(nameof(LoadTestCases), Arguments = ["fixtures/encode/objects.json"])]
+    public async Task Objects(EncodeTestData testData)
     {
         var toon = Cysharp.AI.ToonEncoder.Encode(testData.Fixture.Input);
         await Assert.That(toon).IsEqualTo(testData.Fixture.Expected);

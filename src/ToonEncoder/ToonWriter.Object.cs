@@ -27,6 +27,11 @@ partial struct ToonWriter<TBufferWriter>
         currentState.Pop();
     }
 
+    public void WriteEmptyObject()
+    {
+        TryWriteKeyValueSeparator(emitSpace: false);
+    }
+
     public void WritePropertyName(ReadOnlySpan<char> propertyName)
     {
         if (currentState.Count == 0) ThrowInvalidState();
@@ -49,7 +54,7 @@ partial struct ToonWriter<TBufferWriter>
             WriteIndent();
         }
 
-        WriteUtf16String(propertyName);
+        WriteUtf16String(propertyName, utf16NeedQuoteCharsForKey);
 
         state.Index++;
         currentState.Push(new DepthState() { Scope = WriteScope.PropertyName, Index = 0 });
@@ -67,7 +72,7 @@ partial struct ToonWriter<TBufferWriter>
             WriteRaw((byte)'\n');
         }
         WriteIndent();
-        WriteUtf8String(utf8PropertyName);
+        WriteUtf8String(utf8PropertyName, utf8NeedQuoteCharsForKey);
 
         state.Index++;
         currentState.Push(new DepthState() { Scope = WriteScope.PropertyName, Index = 0 });

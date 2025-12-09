@@ -37,6 +37,13 @@ public static class ToonEncoder
         switch (element.ValueKind)
         {
             case JsonValueKind.Object:
+                var isEmpty = !element.EnumerateObject().Any();
+                if (isEmpty)
+                {
+                    toonWriter.WriteEmptyObject();
+                    break;
+                }
+
                 toonWriter.WriteStartObject();
                 foreach (var item in element.EnumerateObject())
                 {

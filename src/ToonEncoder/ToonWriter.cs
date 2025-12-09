@@ -1,4 +1,5 @@
 ﻿using Cysharp.AI.Internal;
+using System;
 using System.Buffers;
 using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
@@ -56,8 +57,12 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
     where TBufferWriter : IBufferWriter<byte>
 {
     static readonly SearchValues<char> utf16NeedQuoteChars = SearchValues.Create(":\"\\{}[]()\n\r\t");
+    static readonly SearchValues<char> utf16NeedQuoteCharsInScope = SearchValues.Create(",:\"\\{}[]()\n\r\t");
+    static readonly SearchValues<char> utf16NeedQuoteCharsForKey = SearchValues.Create(" ,:\"\\{}[]()\n\r\t");
     static readonly SearchValues<char> utf16NeedEscapeChars = SearchValues.Create("\"\\\n\r\t");
     static readonly SearchValues<byte> utf8NeedQuoteChars = SearchValues.Create(":\"\\{}[]()\n\r\t"u8);
+    static readonly SearchValues<byte> utf8NeedQuoteCharsInScope = SearchValues.Create(",:\"\\{}[]()\n\r\t"u8);
+    static readonly SearchValues<byte> utf8NeedQuoteCharsForKey = SearchValues.Create(" ,:\"\\{}[]()\n\r\t"u8);
     static readonly SearchValues<byte> utf8NeedEscapeChars = SearchValues.Create("\"\\\n\r\t"u8);
 
     Span<byte> buffer;
@@ -105,7 +110,10 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
     {
         TryWriteKeyValueSeparator();
         WriteDelimiter();
-        WriteUtf16String(value);
+
+        ref var state = ref currentState.PeekRefOrNullRef();
+        var inScope = !Unsafe.IsNullRef(ref state) && state.Scope != WriteScope.None;
+        WriteUtf16String(value, searchValues: inScope ? utf16NeedQuoteCharsInScope : utf16NeedQuoteChars);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -113,7 +121,10 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
     {
         TryWriteKeyValueSeparator();
         WriteDelimiter();
-        WriteUtf8String(utf8Value);
+
+        ref var state = ref currentState.PeekRefOrNullRef();
+        var inScope = !Unsafe.IsNullRef(ref state) && state.Scope != WriteScope.None;
+        WriteUtf8String(utf8Value, inScope ? utf8NeedQuoteCharsInScope : utf8NeedQuoteChars);
     }
 
     public void WriteNumber(int value) { TryWriteKeyValueSeparator(); WriteDelimiter(); FormatInt64(value); }
@@ -150,7 +161,7 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
         }
         const int MaxLength = 32;
         EnsureBuffer(MaxLength);
-        Utf8Formatter.TryFormat(value, buffer, out var bytesWritten, new StandardFormat('G', 17));
+        Utf8Formatter.TryFormat(value, buffer, out var bytesWritten);
         buffer = buffer.Slice(bytesWritten);
         written += bytesWritten;
     }
@@ -176,9 +187,9 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
         }
     }
 
-    void WriteUtf16String(ReadOnlySpan<char> value)
+    void WriteUtf16String(ReadOnlySpan<char> value, SearchValues<char> searchValues)
     {
-        if (NeedsQuote(value))
+        if (NeedsQuote(value, searchValues))
         {
             WriteRaw("\""u8);
             WriteUtf16WithEscapeCore(value);
@@ -190,9 +201,9 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
         }
     }
 
-    void WriteUtf8String(ReadOnlySpan<byte> value)
+    void WriteUtf8String(ReadOnlySpan<byte> value, SearchValues<byte> searchValues)
     {
-        if (NeedsQuote(value))
+        if (NeedsQuote(value, searchValues))
         {
             WriteRaw("\""u8);
             WriteUtf8WithEscapeCore(value);
@@ -206,9 +217,8 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
 
 
     // Quoting reference: https://toonformat.dev/guide/format-overview#when-strings-need-quotes
-    // TODO: It contains the relevant delimiter (the active delimiter inside an array scope, or the document delimiter elsewhere)
 
-    static bool NeedsQuote(ReadOnlySpan<char> value)
+    static bool NeedsQuote(ReadOnlySpan<char> value, SearchValues<char> searchValues)
     {
         // It's empty ("")
         if (value.Length == 0) return true;
@@ -227,12 +237,13 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
         if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out _)) return true;
 
         // Contains special characters
-        if (value.ContainsAny(utf16NeedQuoteChars)) return true;
+        // It contains the relevant delimiter (the active delimiter inside an array scope, or the document delimiter elsewhere)
+        if (value.ContainsAny(searchValues)) return true;
 
         return false;
     }
 
-    static bool NeedsQuote(ReadOnlySpan<byte> value)
+    static bool NeedsQuote(ReadOnlySpan<byte> value, SearchValues<byte> searchValues)
     {
         // It's empty ("")
         if (value.Length == 0) return true;
@@ -251,7 +262,8 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
         if (Utf8Parser.TryParse(value, out double _, out int consumed) && consumed == value.Length) return true;
 
         // Contains special characters
-        if (value.ContainsAny(utf8NeedQuoteChars)) return true;
+        // It contains the relevant delimiter (the active delimiter inside an array scope, or the document delimiter elsewhere)
+        if (value.ContainsAny(searchValues)) return true;
 
         return false;
     }
