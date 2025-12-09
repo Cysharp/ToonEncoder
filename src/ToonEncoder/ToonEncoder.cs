@@ -93,10 +93,7 @@ public static class ToonEncoder
                         foreach (var item in enumerator)
                         {
                             toonWriter.WriteNextRowOfMixedAndNonUniformArrays();
-                            foreach (var value in item.EnumerateObject())
-                            {
-                                WriteElement(ref toonWriter, value.Value);
-                            }
+                            WriteElement(ref toonWriter, item);
                         }
                         toonWriter.WriteEndMixedAndNonUniformArrays();
                         break;

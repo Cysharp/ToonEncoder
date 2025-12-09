@@ -4,7 +4,7 @@ using System.Text.Json;
 
 var json = JsonElement.Parse("""
 {
-    "user": {}
+    "pairs": [["a", "b"], ["c", "d"]]
 }    
 """);
 

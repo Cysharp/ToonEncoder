@@ -19,7 +19,7 @@ partial struct ToonWriter<TBufferWriter>
 
     public void WriteStartPrimitiveArrays(ReadOnlySpan<byte> utf8PropertyName, int arrayLength)
     {
-        WriteUtf8String(utf8PropertyName, utf8NeedQuoteCharsInScope);
+        WriteUtf8String(utf8PropertyName, QuoteScope.InArray);
         WriteRaw((byte)'[');
         FormatInt64(arrayLength); // without write-separator
         WriteDelimiterForArrayLength();
@@ -60,7 +60,7 @@ partial struct ToonWriter<TBufferWriter>
                 WriteRaw((byte)Delimiter);
             }
 
-            WriteUtf16String(fieldName, utf16NeedQuoteCharsInScope);
+            WriteUtf16String(fieldName, QuoteScope.InArray);
         }
 
         WriteRaw("}"u8);

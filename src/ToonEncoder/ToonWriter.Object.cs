@@ -54,7 +54,7 @@ partial struct ToonWriter<TBufferWriter>
             WriteIndent();
         }
 
-        WriteUtf16String(propertyName, utf16NeedQuoteCharsForKey);
+        WriteUtf16String(propertyName, QuoteScope.ObjectKey);
 
         state.Index++;
         currentState.Push(new DepthState() { Scope = WriteScope.PropertyName, Index = 0 });
@@ -72,7 +72,7 @@ partial struct ToonWriter<TBufferWriter>
             WriteRaw((byte)'\n');
         }
         WriteIndent();
-        WriteUtf8String(utf8PropertyName, utf8NeedQuoteCharsForKey);
+        WriteUtf8String(utf8PropertyName, QuoteScope.ObjectKey);
 
         state.Index++;
         currentState.Push(new DepthState() { Scope = WriteScope.PropertyName, Index = 0 });

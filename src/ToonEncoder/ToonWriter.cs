@@ -14,13 +14,13 @@ public static class ToonWriter
     public static ToonWriter<TBufferWriter> Create<TBufferWriter>(TBufferWriter bufferWriter)
         where TBufferWriter : IBufferWriter<byte>
     {
-        return new ToonWriter<TBufferWriter>(bufferWriter);
+        return new ToonWriter<TBufferWriter>(bufferWriter, Delimiter.Comma); // Comma is default
     }
 
     public static ToonWriter<TBufferWriter> Create<TBufferWriter>(TBufferWriter bufferWriter, Delimiter delimiter)
         where TBufferWriter : IBufferWriter<byte>
     {
-        return new ToonWriter<TBufferWriter>(bufferWriter) { Delimiter = delimiter };
+        return new ToonWriter<TBufferWriter>(bufferWriter, delimiter);
     }
 }
 
@@ -53,20 +53,41 @@ internal struct DepthState
     }
 }
 
-public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
+internal static class ToonSearchValues
+{
+    // for quote and escape checks
+
+    public static readonly SearchValues<char> CommaUtf16NeedQuoteCharsInArray = SearchValues.Create(",:\"\\{}[]()\n\r\t");
+    public static readonly SearchValues<char> CommaUtf16NeedQuoteCharsObjectKey = SearchValues.Create(" ,:\"\\{}[]()\n\r\t");
+    public static readonly SearchValues<byte> CommaUtf8NeedQuoteCharsInArray = SearchValues.Create(",:\"\\{}[]()\n\r\t"u8);
+    public static readonly SearchValues<byte> CommaUtf8NeedQuoteCharsObjectKey = SearchValues.Create(" ,:\"\\{}[]()\n\r\t"u8);
+
+    public static readonly SearchValues<char> PipeUtf16NeedQuoteCharsInArray = SearchValues.Create("|:\"\\{}[]()\n\r\t");
+    public static readonly SearchValues<char> PipeUtf16NeedQuoteCharsObjectKey = SearchValues.Create(" |:\"\\{}[]()\n\r\t");
+    public static readonly SearchValues<byte> PipeUtf8NeedQuoteCharsInArray = SearchValues.Create("|:\"\\{}[]()\n\r\t"u8);
+    public static readonly SearchValues<byte> PipeUtf8NeedQuoteCharsObjectKey = SearchValues.Create(" |:\"\\{}[]()\n\r\t"u8);
+
+    public static readonly SearchValues<char> TabUtf16NeedQuoteCharsInArray = SearchValues.Create(":\"\\{}[]()\n\r\t");
+    public static readonly SearchValues<char> TabUtf16NeedQuoteCharsObjectKey = SearchValues.Create(" :\"\\{}[]()\n\r\t");
+    public static readonly SearchValues<byte> TabUtf8NeedQuoteCharsInArray = SearchValues.Create(":\"\\{}[]()\n\r\t"u8);
+    public static readonly SearchValues<byte> TabUtf8NeedQuoteCharsObjectKey = SearchValues.Create(" :\"\\{}[]()\n\r\t"u8);
+
+    public static readonly SearchValues<char> Utf16NeedQuoteChars = SearchValues.Create(":\"\\{}[]()\n\r\t");
+    public static readonly SearchValues<byte> Utf8NeedQuoteChars = SearchValues.Create(":\"\\{}[]()\n\r\t"u8);
+    public static readonly SearchValues<char> Utf16NeedEscapeChars = SearchValues.Create("\"\\\n\r\t");
+    public static readonly SearchValues<byte> Utf8NeedEscapeChars = SearchValues.Create("\"\\\n\r\t"u8);
+}
+
+internal enum QuoteScope
+{
+    None, ObjectKey, InArray
+}
+
+public ref partial struct ToonWriter<TBufferWriter>
     where TBufferWriter : IBufferWriter<byte>
 {
-    static readonly SearchValues<char> utf16NeedQuoteChars = SearchValues.Create(":\"\\{}[]()\n\r\t");
-    static readonly SearchValues<char> utf16NeedQuoteCharsInScope = SearchValues.Create(",:\"\\{}[]()\n\r\t");
-    static readonly SearchValues<char> utf16NeedQuoteCharsForKey = SearchValues.Create(" ,:\"\\{}[]()\n\r\t");
-    static readonly SearchValues<char> utf16NeedEscapeChars = SearchValues.Create("\"\\\n\r\t");
-    static readonly SearchValues<byte> utf8NeedQuoteChars = SearchValues.Create(":\"\\{}[]()\n\r\t"u8);
-    static readonly SearchValues<byte> utf8NeedQuoteCharsInScope = SearchValues.Create(",:\"\\{}[]()\n\r\t"u8);
-    static readonly SearchValues<byte> utf8NeedQuoteCharsForKey = SearchValues.Create(" ,:\"\\{}[]()\n\r\t"u8);
-    static readonly SearchValues<byte> utf8NeedEscapeChars = SearchValues.Create("\"\\\n\r\t"u8);
-
     Span<byte> buffer;
-    TBufferWriter bufferWriter = bufferWriter;
+    TBufferWriter bufferWriter;
 
     int written;
     int totalWritten;
@@ -74,7 +95,13 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
 
     public int BytesCommitted => totalWritten;
     public int BytesPending => written;
-    public Delimiter Delimiter { get; init; } = Delimiter.Comma;
+    public Delimiter Delimiter { get; }
+
+    public ToonWriter(TBufferWriter bufferWriter, Delimiter delimiter)
+    {
+        this.bufferWriter = bufferWriter;
+        this.Delimiter = delimiter;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteBoolean(bool value)
@@ -113,7 +140,7 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
 
         ref var state = ref currentState.PeekRefOrNullRef();
         var inScope = !Unsafe.IsNullRef(ref state) && state.Scope != WriteScope.None;
-        WriteUtf16String(value, searchValues: inScope ? utf16NeedQuoteCharsInScope : utf16NeedQuoteChars);
+        WriteUtf16String(value, inScope ? QuoteScope.InArray : QuoteScope.None);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -124,7 +151,7 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
 
         ref var state = ref currentState.PeekRefOrNullRef();
         var inScope = !Unsafe.IsNullRef(ref state) && state.Scope != WriteScope.None;
-        WriteUtf8String(utf8Value, inScope ? utf8NeedQuoteCharsInScope : utf8NeedQuoteChars);
+        WriteUtf8String(utf8Value, inScope ? QuoteScope.InArray : QuoteScope.None);
     }
 
     public void WriteNumber(int value) { TryWriteKeyValueSeparator(); WriteDelimiter(); FormatInt64(value); }
@@ -187,9 +214,9 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
         }
     }
 
-    void WriteUtf16String(ReadOnlySpan<char> value, SearchValues<char> searchValues)
+    void WriteUtf16String(ReadOnlySpan<char> value, QuoteScope quoteScope)
     {
-        if (NeedsQuote(value, searchValues))
+        if (NeedsQuote(value, quoteScope))
         {
             WriteRaw("\""u8);
             WriteUtf16WithEscapeCore(value);
@@ -201,9 +228,9 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
         }
     }
 
-    void WriteUtf8String(ReadOnlySpan<byte> value, SearchValues<byte> searchValues)
+    void WriteUtf8String(ReadOnlySpan<byte> value, QuoteScope quoteScope)
     {
-        if (NeedsQuote(value, searchValues))
+        if (NeedsQuote(value, quoteScope))
         {
             WriteRaw("\""u8);
             WriteUtf8WithEscapeCore(value);
@@ -218,7 +245,7 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
 
     // Quoting reference: https://toonformat.dev/guide/format-overview#when-strings-need-quotes
 
-    static bool NeedsQuote(ReadOnlySpan<char> value, SearchValues<char> searchValues)
+    bool NeedsQuote(ReadOnlySpan<char> value, QuoteScope quoteScope)
     {
         // It's empty ("")
         if (value.Length == 0) return true;
@@ -238,12 +265,23 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
 
         // Contains special characters
         // It contains the relevant delimiter (the active delimiter inside an array scope, or the document delimiter elsewhere)
+        var searchValues = (quoteScope, Delimiter) switch
+        {
+            (QuoteScope.InArray, Delimiter.Comma) => ToonSearchValues.CommaUtf16NeedQuoteCharsInArray,
+            (QuoteScope.ObjectKey, Delimiter.Comma) => ToonSearchValues.CommaUtf16NeedQuoteCharsObjectKey,
+            (QuoteScope.InArray, Delimiter.Pipe) => ToonSearchValues.PipeUtf16NeedQuoteCharsInArray,
+            (QuoteScope.ObjectKey, Delimiter.Pipe) => ToonSearchValues.PipeUtf16NeedQuoteCharsObjectKey,
+            (QuoteScope.InArray, Delimiter.Tab) => ToonSearchValues.TabUtf16NeedQuoteCharsInArray,
+            (QuoteScope.ObjectKey, Delimiter.Tab) => ToonSearchValues.TabUtf16NeedQuoteCharsObjectKey,
+            _ => ToonSearchValues.Utf16NeedQuoteChars,
+        };
+
         if (value.ContainsAny(searchValues)) return true;
 
         return false;
     }
 
-    static bool NeedsQuote(ReadOnlySpan<byte> value, SearchValues<byte> searchValues)
+    bool NeedsQuote(ReadOnlySpan<byte> value, QuoteScope quoteScope)
     {
         // It's empty ("")
         if (value.Length == 0) return true;
@@ -263,6 +301,17 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
 
         // Contains special characters
         // It contains the relevant delimiter (the active delimiter inside an array scope, or the document delimiter elsewhere)
+        var searchValues = (quoteScope, Delimiter) switch
+        {
+            (QuoteScope.InArray, Delimiter.Comma) => ToonSearchValues.CommaUtf8NeedQuoteCharsInArray,
+            (QuoteScope.ObjectKey, Delimiter.Comma) => ToonSearchValues.CommaUtf8NeedQuoteCharsObjectKey,
+            (QuoteScope.InArray, Delimiter.Pipe) => ToonSearchValues.PipeUtf8NeedQuoteCharsInArray,
+            (QuoteScope.ObjectKey, Delimiter.Pipe) => ToonSearchValues.PipeUtf8NeedQuoteCharsObjectKey,
+            (QuoteScope.InArray, Delimiter.Tab) => ToonSearchValues.TabUtf8NeedQuoteCharsInArray,
+            (QuoteScope.ObjectKey, Delimiter.Tab) => ToonSearchValues.TabUtf8NeedQuoteCharsObjectKey,
+            _ => ToonSearchValues.Utf8NeedQuoteChars,
+        };
+
         if (value.ContainsAny(searchValues)) return true;
 
         return false;
@@ -272,7 +321,7 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
     {
         while (value.Length > 0)
         {
-            var index = value.IndexOfAny(utf16NeedEscapeChars);
+            var index = value.IndexOfAny(ToonSearchValues.Utf16NeedEscapeChars);
             if (index == -1)
             {
                 WriteUtf16Core(value);
@@ -291,7 +340,7 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
     {
         while (value.Length > 0)
         {
-            var index = value.IndexOfAny(utf8NeedEscapeChars);
+            var index = value.IndexOfAny(ToonSearchValues.Utf8NeedEscapeChars);
             if (index == -1)
             {
                 WriteRaw(value);
