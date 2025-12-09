@@ -11,16 +11,16 @@ namespace Cysharp.AI;
 
 public static class ToonWriter
 {
-    public static ToonWriter<TBufferWriter> Create<TBufferWriter>(TBufferWriter bufferWriter)
+    public static ToonWriter<TBufferWriter> Create<TBufferWriter>(in TBufferWriter bufferWriter)
         where TBufferWriter : IBufferWriter<byte>
     {
-        return new ToonWriter<TBufferWriter>(bufferWriter, Delimiter.Comma); // Comma is default
+        return new ToonWriter<TBufferWriter>(ref Unsafe.AsRef(in bufferWriter), Delimiter.Comma); // Comma is default
     }
 
-    public static ToonWriter<TBufferWriter> Create<TBufferWriter>(TBufferWriter bufferWriter, Delimiter delimiter)
+    public static ToonWriter<TBufferWriter> Create<TBufferWriter>(in TBufferWriter bufferWriter, Delimiter delimiter)
         where TBufferWriter : IBufferWriter<byte>
     {
-        return new ToonWriter<TBufferWriter>(bufferWriter, delimiter);
+        return new ToonWriter<TBufferWriter>(ref Unsafe.AsRef(in bufferWriter), delimiter);
     }
 }
 
@@ -87,7 +87,7 @@ public ref partial struct ToonWriter<TBufferWriter>
     where TBufferWriter : IBufferWriter<byte>
 {
     Span<byte> buffer;
-    TBufferWriter bufferWriter;
+    ref TBufferWriter bufferWriter;
 
     int written;
     int totalWritten;
@@ -97,9 +97,9 @@ public ref partial struct ToonWriter<TBufferWriter>
     public int BytesPending => written;
     public Delimiter Delimiter { get; }
 
-    public ToonWriter(TBufferWriter bufferWriter, Delimiter delimiter)
+    public ToonWriter(ref TBufferWriter bufferWriter, Delimiter delimiter)
     {
-        this.bufferWriter = bufferWriter;
+        this.bufferWriter = ref bufferWriter;
         this.Delimiter = delimiter;
     }
 

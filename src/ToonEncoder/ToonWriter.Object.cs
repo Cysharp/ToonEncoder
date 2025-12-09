@@ -127,7 +127,13 @@ partial struct ToonWriter<TBufferWriter>
                 mixedAndNonUniformArraysDepth++;
             }
         }
-        var depth = Math.Max(objectsDepth - 1, 0) + arrayOfObjectsDepth + (mixedAndNonUniformArraysDepth);
+
+        objectsDepth = currentState.AsSpan()[0].Scope == WriteScope.Objects
+            ? Math.Max(objectsDepth - 1, 0) // root object no needs indent
+            : objectsDepth;
+
+        // objectsDepth = objectsDepth; // - mixedAndNonUniformArraysDepth; // under mixed, no needs indent
+        var depth = objectsDepth + arrayOfObjectsDepth + mixedAndNonUniformArraysDepth;
 
         switch (depth)
         {
@@ -146,8 +152,7 @@ partial struct ToonWriter<TBufferWriter>
                 WriteRaw("        "u8);
                 break;
             default:
-                var count = currentState.Count;
-                for (int i = 0; i < count; i++)
+                for (int i = 0; i < depth; i++)
                 {
                     WriteRaw("  "u8);
                 }

@@ -3,9 +3,7 @@
 using System.Text.Json;
 
 var json = JsonElement.Parse("""
-{
-"pairs": [[], []]
-}    
+[{ "id": 1 }, { "id": 2, "name": "Ada" }]
 """);
 
 var toon = ToonEncoder.Encode(json);

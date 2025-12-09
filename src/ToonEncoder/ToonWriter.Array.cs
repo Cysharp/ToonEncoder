@@ -94,7 +94,7 @@ partial struct ToonWriter<TBufferWriter>
         WriteRaw((byte)']');
         if (!TryWriteKeyValueSeparator(emitSpace: false))
         {
-            WriteRaw(": "u8);
+            WriteRaw(":"u8);
         }
 
         currentState.Push(new DepthState { Scope = WriteScope.MixedAndNonUniformArrays, Index = 0 });

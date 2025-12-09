@@ -202,6 +202,12 @@ public static class ToonEncoder
             var names = CollectionsMarshal.AsSpan(namesList);
             foreach (var value in item.EnumerateObject())
             {
+                if (nameIndex >= names.Length)
+                {
+                    fieldNames = default!;
+                    return false;
+                }
+
                 ref var x = ref names[nameIndex++];
                 if (value.Name == x.Item1 && ToToonPrimitive(value.Value.ValueKind) == x.Item2)
                 {

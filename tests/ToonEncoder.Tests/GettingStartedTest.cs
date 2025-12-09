@@ -7,7 +7,7 @@ using System.Text.Json;
 namespace ToonEncoder.Tests;
 
 // https://toonformat.dev/guide/getting-started.html
-public class GettingStarted
+public class GettingStartedTest
 {
     static string JsonToToon([StringSyntax("json")] string json)
     {
