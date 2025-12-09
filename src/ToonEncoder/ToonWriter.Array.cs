@@ -9,24 +9,19 @@ partial struct ToonWriter<TBufferWriter>
         FormatInt64(arrayLength);
         WriteDelimiterForArrayLength();
         WriteRaw((byte)']');
-        if (!TryWriteKeyValueSeparator(emitSpace: arrayLength != 0))
-        {
-            WriteRaw(": "u8);
-        }
 
-        currentState.Push(new DepthState { Scope = WriteScope.PrimitiveArrays, Index = 0 });
-    }
+        var emitSpace = arrayLength != 0;
 
-    public void WriteStartPrimitiveArrays(ReadOnlySpan<byte> utf8PropertyName, int arrayLength)
-    {
-        WriteUtf8String(utf8PropertyName, QuoteScope.InArray);
-        WriteRaw((byte)'[');
-        FormatInt64(arrayLength); // without write-separator
-        WriteDelimiterForArrayLength();
-        WriteRaw((byte)']');
-        if (!TryWriteKeyValueSeparator())
+        if (!TryWriteKeyValueSeparator(emitSpace: emitSpace))
         {
-            WriteRaw(": "u8);
+            if (emitSpace)
+            {
+                WriteRaw(": "u8);
+            }
+            else
+            {
+                WriteRaw(":"u8);
+            }
         }
 
         currentState.Push(new DepthState { Scope = WriteScope.PrimitiveArrays, Index = 0 });

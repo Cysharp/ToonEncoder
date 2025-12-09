@@ -4,11 +4,14 @@ using System.Text.Json;
 
 var json = JsonElement.Parse("""
 {
-    "pairs": [["a", "b"], ["c", "d"]]
+"pairs": [[], []]
 }    
 """);
 
 var toon = ToonEncoder.Encode(json);
+
+
+// JsonSerializer.SerializeToElement(
 
 Console.WriteLine(toon);
 
