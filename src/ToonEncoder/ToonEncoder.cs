@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -73,13 +74,27 @@ public static class ToonEncoder
                     {
                         enumerator.Reset();
 
-                        toonWriter.WriteStartArraysOfObjects(length, fieldNames);
+                        toonWriter.WriteStartArraysOfObjects(length, fieldNames.Select(x => x.Name));
+                        var orderedProperties = new JsonProperty[fieldNames.Count];
+                        var nameLookup = fieldNames.GetAlternateLookup<string>();
                         foreach (var item in enumerator)
                         {
                             toonWriter.WriteNextRowOfArraysOfObjects();
                             foreach (var value in item.EnumerateObject())
                             {
-                                WriteElement(ref toonWriter, value.Value);
+                                if (nameLookup.TryGetValue(value.Name, out var key))
+                                {
+                                    orderedProperties[key.Index] = value;
+                                }
+                                else
+                                {
+                                    throw new InvalidOperationException("This should not happen.");
+                                }
+                            }
+
+                            foreach (var jsonProperty in orderedProperties)
+                            {
+                                WriteElement(ref toonWriter, jsonProperty.Value);
                             }
                         }
                         toonWriter.WriteEndArraysOfObjects();
@@ -92,8 +107,15 @@ public static class ToonEncoder
                         toonWriter.WriteStartMixedAndNonUniformArrays(element.GetArrayLength());
                         foreach (var item in enumerator)
                         {
-                            toonWriter.WriteNextRowOfMixedAndNonUniformArrays();
-                            WriteElement(ref toonWriter, item);
+                            if (item.ValueKind == JsonValueKind.Object && !item.EnumerateObject().Any())
+                            {
+                                toonWriter.WriteEmptyNextRowOfMixedAndNonUniformArrays();
+                            }
+                            else
+                            {
+                                toonWriter.WriteNextRowOfMixedAndNonUniformArrays();
+                                WriteElement(ref toonWriter, item);
+                            }
                         }
                         toonWriter.WriteEndMixedAndNonUniformArrays();
                         break;
@@ -158,10 +180,9 @@ public static class ToonEncoder
         return true;
     }
 
-
-    static bool AllElementsAreSamePrimitiveObjects(ref JsonElement.ArrayEnumerator enumerator, out string[] fieldNames, out int length)
+    static bool AllElementsAreSamePrimitiveObjects(ref JsonElement.ArrayEnumerator enumerator, out HashSet<ArraysOfObjectsKey> fieldNames, out int length)
     {
-        List<(string, ToonPrimitive)>? namesList = null;
+        HashSet<ArraysOfObjectsKey>? names = null;
         length = 0;
         foreach (var item in enumerator)
         {
@@ -172,9 +193,10 @@ public static class ToonEncoder
             }
 
             // first-one
-            if (namesList == null)
+            if (names == null)
             {
-                namesList = new();
+                names = new(4, comparer: ArraysOfObjectsKeyAlternateEqualityComparer.Default);
+                var findIndex = 0;
                 foreach (var value in item.EnumerateObject())
                 {
                     switch (value.Value.ValueKind)
@@ -190,7 +212,7 @@ public static class ToonEncoder
                         case JsonValueKind.False:
                         case JsonValueKind.Null:
                         default:
-                            namesList.Add((value.Name, ToToonPrimitive(value.Value.ValueKind)));
+                            names.Add(new(findIndex++, value.Name, ToToonPrimitive(value.Value.ValueKind)));
                             continue;
                     }
                 }
@@ -199,28 +221,35 @@ public static class ToonEncoder
             }
 
             var nameIndex = 0;
-            var names = CollectionsMarshal.AsSpan(namesList);
+            var namesLookup = names.GetAlternateLookup<string>();
             foreach (var value in item.EnumerateObject())
             {
-                if (nameIndex >= names.Length)
+                if (nameIndex >= names.Count)
                 {
                     fieldNames = default!;
                     return false;
                 }
 
-                ref var x = ref names[nameIndex++];
-                if (value.Name == x.Item1 && ToToonPrimitive(value.Value.ValueKind) == x.Item2)
+                if (namesLookup.TryGetValue(value.Name, out var nameKey) && nameKey.PrimitiveKind == ToToonPrimitive(value.Value.ValueKind))
                 {
+                    nameIndex++;
                     continue;
                 }
 
                 fieldNames = default!;
                 return false;
             }
+
+            if (nameIndex != names.Count)
+            {
+                fieldNames = default!;
+                return false;
+            }
+
             length++;
         }
 
-        fieldNames = namesList!.Select(x => x.Item1).ToArray();
+        fieldNames = names ?? new(1);
         return true;
     }
 
@@ -232,13 +261,52 @@ public static class ToonEncoder
             JsonValueKind.Number => ToonPrimitive.Number,
             JsonValueKind.True or JsonValueKind.False => ToonPrimitive.Boolean,
             JsonValueKind.Null or JsonValueKind.Undefined => ToonPrimitive.Null,
-            _ => throw new InvalidOperationException("Not a primitive."),
+            JsonValueKind.Object => ToonPrimitive.Object,
+            JsonValueKind.Array => ToonPrimitive.Array,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), $"Unsupported JsonValueKind: {kind}"),
         };
     }
 
     public enum ToonPrimitive
     {
-        String, Number, Boolean, Null
+        String, Number, Boolean, Null, Object, Array
+    }
+
+    public record struct ArraysOfObjectsKey(int Index, string Name, ToonPrimitive PrimitiveKind);
+
+    // Alternate is "Name"
+    public class ArraysOfObjectsKeyAlternateEqualityComparer : IEqualityComparer<ArraysOfObjectsKey>, IAlternateEqualityComparer<string, ArraysOfObjectsKey>
+    {
+        public static readonly ArraysOfObjectsKeyAlternateEqualityComparer Default = new();
+
+        // IEqualityComparer
+
+        public bool Equals(ArraysOfObjectsKey x, ArraysOfObjectsKey y)
+        {
+            return x.Name == y.Name;
+        }
+
+        public int GetHashCode(ArraysOfObjectsKey obj)
+        {
+            return obj.Name.GetHashCode();
+        }
+
+        // IAlternateEqualityComparer
+
+        public ArraysOfObjectsKey Create(string name)
+        {
+            return new ArraysOfObjectsKey(0, name, ToonPrimitive.Null); // Index and PrimitiveKind are dummy here
+        }
+
+        public bool Equals(string name, ArraysOfObjectsKey other)
+        {
+            return name == other.Name;
+        }
+
+        public int GetHashCode(string name)
+        {
+            return name.GetHashCode();
+        }
     }
 }
 

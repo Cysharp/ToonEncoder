@@ -111,6 +111,17 @@ partial struct ToonWriter<TBufferWriter>
         WriteRaw("- "u8);
     }
 
+    public void WriteEmptyNextRowOfMixedAndNonUniformArrays()
+    {
+        if (currentState.Count == 0) ThrowInvalidState();
+        ref var state = ref currentState.PeekRefOrNullRef();
+        if (state.Scope != WriteScope.MixedAndNonUniformArrays) ThrowInvalidState();
+
+        WriteRaw((byte)'\n');
+        WriteIndent();
+        WriteRaw("-"u8);
+    }
+
     public void WriteEndMixedAndNonUniformArrays()
     {
         if (currentState.Count == 0) return;
