@@ -107,13 +107,13 @@ public static class ToonEncoder
                 {
                     toonWriter.WriteNumber(longValue);
                 }
+                else if (element.TryGetDecimal(out var decimalValue)) // use decimal than double for better precision
+                {
+                    toonWriter.WriteNumber(decimalValue);
+                }
                 else if (element.TryGetDouble(out var doubleValue))
                 {
                     toonWriter.WriteNumber(doubleValue);
-                }
-                else if (element.TryGetDecimal(out var decimalValue))
-                {
-                    toonWriter.WriteNumber(decimalValue);
                 }
                 break;
             case JsonValueKind.True:

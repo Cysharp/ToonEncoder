@@ -150,7 +150,7 @@ public ref partial struct ToonWriter<TBufferWriter>(TBufferWriter bufferWriter)
         }
         const int MaxLength = 32;
         EnsureBuffer(MaxLength);
-        Utf8Formatter.TryFormat(value, buffer, out var bytesWritten);
+        Utf8Formatter.TryFormat(value, buffer, out var bytesWritten, new StandardFormat('G', 17));
         buffer = buffer.Slice(bytesWritten);
         written += bytesWritten;
     }
