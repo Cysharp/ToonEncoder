@@ -1,0 +1,152 @@
+﻿// https://toonformat.dev/guide/format-overview#objects
+using System.Runtime.CompilerServices;
+
+namespace Cysharp.AI;
+
+partial struct ToonWriter<TBufferWriter>
+{
+    public void WriteStartObject()
+    {
+        TryWriteKeyValueSeparator(emitSpace: false);
+
+        if (currentState.Count > 0)
+        {
+            ref var state = ref currentState.PeekRefOrNullRef();
+            if (state.Scope == WriteScope.Objects)
+            {
+                WriteRaw((byte)'\n');
+            }
+        }
+        currentState.Push(new DepthState { Scope = WriteScope.Objects, Index = 0 });
+    }
+
+    public void WriteEndObject()
+    {
+        if (currentState.Count == 0) return;
+        if (currentState.PeekRefOrNullRef().Scope != WriteScope.Objects) ThrowInvalidState();
+        currentState.Pop();
+    }
+
+    public void WritePropertyName(ReadOnlySpan<char> propertyName)
+    {
+        if (currentState.Count == 0) ThrowInvalidState();
+
+        ref var state = ref currentState.PeekRefOrNullRef();
+        if (state.Scope != WriteScope.Objects) ThrowInvalidState();
+
+        if (state.Index != 0)
+        {
+            WriteRaw((byte)'\n');
+        }
+
+        ref var state2 = ref currentState.PeekTRefTwoOrNullRef();
+        if (!Unsafe.IsNullRef(ref state2) && state2.Scope == WriteScope.MixedAndNonUniformArrays && state.Index == 0)
+        {
+            // Special case: no needs indent.
+        }
+        else
+        {
+            WriteIndent();
+        }
+
+        WriteUtf16String(propertyName);
+
+        state.Index++;
+        currentState.Push(new DepthState() { Scope = WriteScope.PropertyName, Index = 0 });
+    }
+
+    public void WritePropertyName(ReadOnlySpan<byte> utf8PropertyName)
+    {
+        if (currentState.Count == 0) ThrowInvalidState();
+
+        ref var state = ref currentState.PeekRefOrNullRef();
+        if (state.Scope != WriteScope.Objects) ThrowInvalidState();
+
+        if (state.Index != 0)
+        {
+            WriteRaw((byte)'\n');
+        }
+        WriteIndent();
+        WriteUtf8String(utf8PropertyName);
+
+        state.Index++;
+        currentState.Push(new DepthState() { Scope = WriteScope.PropertyName, Index = 0 });
+    }
+
+    bool TryWriteKeyValueSeparator(bool emitSpace = true)
+    {
+        if (currentState.Count == 0) return false;
+        ref var state = ref currentState.PeekRefOrNullRef();
+        if (state.Scope == WriteScope.PropertyName)
+        {
+            if (emitSpace)
+            {
+                WriteRaw(": "u8);
+            }
+            else
+            {
+                WriteRaw(":"u8);
+            }
+            currentState.Pop();
+            return true;
+        }
+        return false;
+    }
+
+    void WriteIndent()
+    {
+        if (currentState.Count == 0)
+        {
+            return;
+        }
+
+        ref var state = ref currentState.PeekRefOrNullRef();
+        if (state.Scope == WriteScope.PrimitiveArrays) return;
+
+        // get depth count
+        var arrayOfObjectsDepth = 0;
+        var objectsDepth = 0;
+        var mixedAndNonUniformArraysDepth = 0;
+        foreach (var item in currentState.AsSpan())
+        {
+            if (item.Scope == WriteScope.ObjectArrays)
+            {
+                arrayOfObjectsDepth++;
+            }
+            else if (item.Scope == WriteScope.Objects)
+            {
+                objectsDepth++;
+            }
+            else if (item.Scope == WriteScope.MixedAndNonUniformArrays)
+            {
+                mixedAndNonUniformArraysDepth++;
+            }
+        }
+        var depth = Math.Max(objectsDepth - 1, 0) + arrayOfObjectsDepth + (mixedAndNonUniformArraysDepth);
+
+        switch (depth)
+        {
+            case 0:
+                break;
+            case 1:
+                WriteRaw("  "u8);
+                break;
+            case 2:
+                WriteRaw("    "u8);
+                break;
+            case 3:
+                WriteRaw("      "u8);
+                break;
+            case 4:
+                WriteRaw("        "u8);
+                break;
+            default:
+                var count = currentState.Count;
+                for (int i = 0; i < count; i++)
+                {
+                    WriteRaw("  "u8);
+                }
+                break;
+        }
+    }
+}

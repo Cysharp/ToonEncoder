@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/sandbox/">
+    <Project Path="sandbox/ConsoleApp1/ConsoleApp1.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/ToonEncoder/ToonEncoder.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ToonEncoder.Tests/ToonEncoder.Tests.csproj" />
+  </Folder>
+</Solution>
