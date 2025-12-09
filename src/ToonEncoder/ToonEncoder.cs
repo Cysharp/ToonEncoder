@@ -258,18 +258,16 @@ public static class ToonEncoder
         return kind switch
         {
             JsonValueKind.String => ToonPrimitive.String,
+            JsonValueKind.Null or JsonValueKind.Undefined => ToonPrimitive.String, // null is primitive of string
             JsonValueKind.Number => ToonPrimitive.Number,
             JsonValueKind.True or JsonValueKind.False => ToonPrimitive.Boolean,
-            JsonValueKind.Null or JsonValueKind.Undefined => ToonPrimitive.Null,
-            JsonValueKind.Object => ToonPrimitive.Object,
-            JsonValueKind.Array => ToonPrimitive.Array,
-            _ => throw new ArgumentOutOfRangeException(nameof(kind), $"Unsupported JsonValueKind: {kind}"),
+            _ => ToonPrimitive.NotPrimitive,
         };
     }
 
     public enum ToonPrimitive
     {
-        String, Number, Boolean, Null, Object, Array
+        NotPrimitive/* object or array */, String, Number, Boolean, Null
     }
 
     public record struct ArraysOfObjectsKey(int Index, string Name, ToonPrimitive PrimitiveKind);

@@ -55,7 +55,7 @@ partial struct ToonWriter<TBufferWriter>
                 WriteRaw((byte)Delimiter);
             }
 
-            WriteUtf16String(fieldName, QuoteScope.InArray);
+            WriteUtf16String(fieldName, QuoteScope.ObjectKey); // tabular is in key
         }
 
         WriteRaw("}"u8);
