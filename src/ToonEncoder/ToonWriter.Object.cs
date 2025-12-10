@@ -71,8 +71,46 @@ partial struct ToonWriter<TBufferWriter>
         {
             WriteRaw((byte)'\n');
         }
-        WriteIndent();
+        
+        ref var state2 = ref currentState.PeekTRefTwoOrNullRef();
+        if (!Unsafe.IsNullRef(ref state2) && state2.Scope == WriteScope.NonUniformArray && state.Index == 0)
+        {
+            // Special case: no needs indent.
+        }
+        else
+        {
+            WriteIndent();
+        }
+
         WriteUtf8String(utf8PropertyName, QuoteScope.ObjectKey);
+
+        state.Index++;
+        currentState.Push(new DepthState() { Scope = WriteScope.PropertyName, Index = 0 });
+    }
+
+    public void WriteEscapedPropertyName(ReadOnlySpan<byte> utf8EscapedPropertyName)
+    {
+        if (currentState.Count == 0) ThrowInvalidState();
+
+        ref var state = ref currentState.PeekRefOrNullRef();
+        if (state.Scope != WriteScope.Objects) ThrowInvalidState();
+
+        if (state.Index != 0)
+        {
+            WriteRaw((byte)'\n');
+        }
+        
+        ref var state2 = ref currentState.PeekTRefTwoOrNullRef();
+        if (!Unsafe.IsNullRef(ref state2) && state2.Scope == WriteScope.NonUniformArray && state.Index == 0)
+        {
+            // Special case: no needs indent.
+        }
+        else
+        {
+            WriteIndent();
+        }
+
+        WriteEscapedUtf8String(utf8EscapedPropertyName, QuoteScope.ObjectKey);
 
         state.Index++;
         currentState.Push(new DepthState() { Scope = WriteScope.PropertyName, Index = 0 });

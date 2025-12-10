@@ -1,20 +1,19 @@
 ﻿using Cysharp.AI;
-
+using System.Text.Encodings.Web;
 using System.Text.Json;
-
-var json = JsonElement.Parse("""
-{
-    "item": "null"
-}
-""");
-
-var json2 = JsonSerializer.SerializeToElement(DateTime.Now);
-Console.WriteLine(json2);
-
-var toon = ToonEncoder.Encode(json);
+using System.Text.Json.Serialization;
 
 
-// JsonSerializer.SerializeToElement(
+//var toon = ToonEncoder.EncodeAsTabularArray(JsonSerializer.SerializeToElement(new Person[]{
+//    new(1, "Aliceだよ", 30),
+//    new(2, "Bob", 25),
+//    new(3, "Charlie", 35)
+//}, ToonEncoder.RecommendJsonSerializerOptions));
+
+
+var toon = ToonEncoder.Encode(JsonSerializer.SerializeToElement(new Person(1, "Aliceだよ", 30), ToonEncoder.RecommendJsonSerializerOptions));
+
 
 Console.WriteLine(toon);
 
+public record Person(int Id, string Name, int Age);

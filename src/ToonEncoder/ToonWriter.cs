@@ -1,5 +1,4 @@
 ﻿using Cysharp.AI.Internal;
-using System;
 using System.Buffers;
 using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
@@ -14,6 +13,7 @@ public static class ToonWriter
     public static ToonWriter<TBufferWriter> Create<TBufferWriter>(in TBufferWriter bufferWriter)
         where TBufferWriter : IBufferWriter<byte>
     {
+        // "in"(readonly) but TBufferWriter allows mutable struct so convert to "ref"
         return new ToonWriter<TBufferWriter>(ref Unsafe.AsRef(in bufferWriter), Delimiter.Comma); // Comma is default
     }
 
@@ -154,6 +154,16 @@ public ref partial struct ToonWriter<TBufferWriter>
         WriteUtf8String(utf8Value, inScope ? QuoteScope.InArray : QuoteScope.None);
     }
 
+    public void WriteEscapedString(ReadOnlySpan<byte> escapedUtf8Value)
+    {
+        TryWriteKeyValueSeparator();
+        WriteDelimiter();
+
+        ref var state = ref currentState.PeekRefOrNullRef();
+        var inScope = !Unsafe.IsNullRef(ref state) && state.Scope != WriteScope.None;
+        WriteEscapedUtf8String(escapedUtf8Value, inScope ? QuoteScope.InArray : QuoteScope.None);
+    }
+
     public void WriteNumber(int value) { TryWriteKeyValueSeparator(); WriteDelimiter(); FormatInt64(value); }
     public void WriteNumber(long value) { TryWriteKeyValueSeparator(); WriteDelimiter(); FormatInt64(value); }
     public void WriteNumber(uint value) { TryWriteKeyValueSeparator(); WriteDelimiter(); FormatUInt64(value); }
@@ -245,6 +255,19 @@ public ref partial struct ToonWriter<TBufferWriter>
         }
     }
 
+    void WriteEscapedUtf8String(ReadOnlySpan<byte> escapedValue, QuoteScope quoteScope)
+    {
+        if (NeedsQuote(escapedValue, quoteScope))
+        {
+            WriteRaw("\""u8);
+            WriteRaw(escapedValue);
+            WriteRaw("\""u8);
+        }
+        else
+        {
+            WriteRaw(escapedValue);
+        }
+    }
 
     // Quoting reference: https://toonformat.dev/guide/format-overview#when-strings-need-quotes
 
