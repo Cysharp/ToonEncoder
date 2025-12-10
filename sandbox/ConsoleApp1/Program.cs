@@ -1,19 +1,38 @@
 ﻿using Cysharp.AI;
+using System.Collections.Concurrent;
+using System.Formats.Asn1;
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 
-//var toon = ToonEncoder.EncodeAsTabularArray(JsonSerializer.SerializeToElement(new Person[]{
-//    new(1, "Aliceだよ", 30),
-//    new(2, "Bob", 25),
-//    new(3, "Charlie", 35)
-//}, ToonEncoder.RecommendJsonSerializerOptions));
+Console.OutputEncoding = Encoding.GetEncoding("utf-8");
+
+var persons = new Person[]{
+        new(1, "Alice\"だよ\"", 30),
+        new(2, "Bob", 25),
+        new(3, "Charlie", 35)
+    };
+
+var toon = ToonEncoder.Encode(
+    JsonSerializer.SerializeToElement(persons, ToonEncoder.RecommendJsonSerializerOptions)
+);
 
 
-var toon = ToonEncoder.Encode(JsonSerializer.SerializeToElement(new Person(1, "Aliceだよ", 30), ToonEncoder.RecommendJsonSerializerOptions));
+var jsonWriter = new Utf8JsonWriter(Console.OpenStandardOutput(), new JsonWriterOptions
+{
+    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    Indented = true,
+});
 
+// ToonEncoder.Encode(jsonWriter, JsonSerializer.SerializeToElement(persons, ToonEncoder.RecommendJsonSerializerOptions));
 
-Console.WriteLine(toon);
+jsonWriter.Flush();
+
+Console.WriteLine("---");
+
+ Console.WriteLine(toon);
 
 public record Person(int Id, string Name, int Age);
+

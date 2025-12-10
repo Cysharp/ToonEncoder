@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.IO.Pipelines;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -31,6 +32,14 @@ public static partial class ToonEncoder
         Encode(ToonWriter.Create(bufferWriter), element);
     }
 
+    public static async ValueTask EncodeAsync<TBufferWriter>(Stream utf8Stream, JsonElement element, CancellationToken cancellationToken)
+        where TBufferWriter : IBufferWriter<byte>
+    {
+        var writer = PipeWriter.Create(utf8Stream);
+        Encode(writer, element);
+        await writer.FlushAsync(cancellationToken);
+    }
+
     public static void Encode<TBufferWriter>(ToonWriter<TBufferWriter> toonWriter, JsonElement element)
         where TBufferWriter : IBufferWriter<byte>
     {
@@ -38,18 +47,10 @@ public static partial class ToonEncoder
         toonWriter.Flush();
     }
 
-    public static void Encode<TBufferWriter>(Stream utf8Stream, JsonElement element)
-        where TBufferWriter : IBufferWriter<byte>
-    {
-        // TODO:...
-    }
-
     public static byte[] EncodeToUtf8Bytes(JsonElement element)
     {
         var bufferWriter = new ArrayBufferWriter<byte>();
-        var toonWriter = ToonWriter.Create(bufferWriter);
-        WriteElement(ref toonWriter, element);
-        toonWriter.Flush();
+        Encode(bufferWriter, element);
         return bufferWriter.WrittenSpan.ToArray();
     }
 
@@ -68,6 +69,26 @@ public static partial class ToonEncoder
         EncodeAsTabularArray(ToonWriter.Create(bufferWriter), element);
     }
 
+    public static async ValueTask EncodeAsTabularArrayAsync<TBufferWriter>(Stream utf8Stream, JsonElement element, CancellationToken cancellationToken)
+        where TBufferWriter : IBufferWriter<byte>
+    {
+        var writer = PipeWriter.Create(utf8Stream);
+        EncodeAsTabularArray(writer, element);
+        await writer.FlushAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Encodes a JSON array of objects as a tabular array using the specified ToonWriter.
+    /// </summary>
+    /// <remarks>All objects in the input array must have identical property names in the same order, and all
+    /// property values must be Toon primitive types. The method writes the tabular array structure to the provided
+    /// ToonWriter and flushes the writer upon completion.</remarks>
+    /// <typeparam name="TBufferWriter">The type of buffer writer used by the ToonWriter to write encoded bytes.</typeparam>
+    /// <param name="toonWriter">The ToonWriter instance that receives the encoded tabular array data.</param>
+    /// <param name="array">A JsonElement representing an array of objects to encode as a tabular array. Each object must have the same
+    /// property names in the same order.</param>
+    /// <exception cref="ArgumentException">Thrown if the provided JsonElement is not an array, if any element in the array is not an object, if objects
+    /// have differing property names or counts, or if any property value is not a Toon primitive.</exception>
     public static void EncodeAsTabularArray<TBufferWriter>(ToonWriter<TBufferWriter> toonWriter, JsonElement array)
         where TBufferWriter : IBufferWriter<byte>
     {
@@ -92,7 +113,9 @@ public static partial class ToonEncoder
         }
 
         var rowPropertyCount = firstRow.GetPropertyCount();
-        toonWriter.WriteStartTabularArray(length, array[0].EnumerateObject().Select(x => (ReadOnlyMemory<byte>)JsonMarshal.GetRawUtf8PropertyName(x).ToArray()), escaped: true);
+        var names = array[0].EnumerateObject().Select(x => (ReadOnlyMemory<byte>)JsonMarshal.GetRawUtf8PropertyName(x).ToArray()).ToArray();
+        toonWriter.WriteStartTabularArray(length, names, escaped: true);
+
         foreach (var item in array.EnumerateArray())
         {
             toonWriter.WriteNextRowOfTabularArray();
@@ -105,6 +128,11 @@ public static partial class ToonEncoder
                 if (!IsToonPrimitive(property.Value.ValueKind))
                 {
                     throw new ArgumentException($"The property '{property.Name}' is not a Toon primitive value, which is required to encode as a tabular array.");
+                }
+
+                if (!names[enumerateCount].Span.SequenceEqual(JsonMarshal.GetRawUtf8PropertyName(property)))
+                {
+                    throw new ArgumentException("All objects in the JsonElement array must have the same property names in the same order to encode as a tabular array.");
                 }
 
                 WriteElement(ref toonWriter, property.Value);

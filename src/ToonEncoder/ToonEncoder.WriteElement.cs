@@ -1,13 +1,31 @@
 using System.Buffers;
 using System.IO.Hashing;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Text.Json;
 
 namespace Cysharp.AI;
 
 static partial class ToonEncoder
 {
+    // public
+    public static bool IsToonPrimitive(JsonValueKind kind)
+    {
+        switch (kind)
+        {
+            case JsonValueKind.String:
+            case JsonValueKind.Number:
+            case JsonValueKind.True:
+            case JsonValueKind.False:
+            case JsonValueKind.Null:
+            case JsonValueKind.Undefined:
+                return true;
+            case JsonValueKind.Object:
+            case JsonValueKind.Array:
+            default:
+                return false;
+        }
+    }
+
     static void WriteElement<TBufferWriter>(ref ToonWriter<TBufferWriter> toonWriter, JsonElement element)
         where TBufferWriter : IBufferWriter<byte>
     {
@@ -226,28 +244,10 @@ static partial class ToonEncoder
         return true;
     }
 
-    static bool IsToonPrimitive(JsonValueKind kind)
-    {
-        switch (kind)
-        {
-            case JsonValueKind.String:
-            case JsonValueKind.Number:
-            case JsonValueKind.True:
-            case JsonValueKind.False:
-            case JsonValueKind.Null:
-            case JsonValueKind.Undefined:
-                return true;
-            case JsonValueKind.Object:
-            case JsonValueKind.Array:
-            default:
-                return false;
-        }
-    }
-
-    public record struct ArraysOfObjectsKey(int Index, byte[] Name);
+    record struct ArraysOfObjectsKey(int Index, byte[] Name);
 
     // Alternate is "Name"(UTF-8 slice)
-    public class ArraysOfObjectsKeyAlternateEqualityComparer : IEqualityComparer<ArraysOfObjectsKey>, IAlternateEqualityComparer<ReadOnlySpan<byte>, ArraysOfObjectsKey>
+    class ArraysOfObjectsKeyAlternateEqualityComparer : IEqualityComparer<ArraysOfObjectsKey>, IAlternateEqualityComparer<ReadOnlySpan<byte>, ArraysOfObjectsKey>
     {
         public static readonly ArraysOfObjectsKeyAlternateEqualityComparer Default = new();
 
