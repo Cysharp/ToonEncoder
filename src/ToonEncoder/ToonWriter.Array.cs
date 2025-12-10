@@ -3,7 +3,7 @@
 // https://toonformat.dev/guide/format-overview#arrays
 partial struct ToonWriter<TBufferWriter>
 {
-    public void WriteStartPrimitiveArrays(int arrayLength)
+    public void WriteStartInlineArray(int arrayLength)
     {
         WriteRaw((byte)'[');
         FormatInt64(arrayLength);
@@ -24,19 +24,19 @@ partial struct ToonWriter<TBufferWriter>
             }
         }
 
-        currentState.Push(new DepthState { Scope = WriteScope.PrimitiveArrays, Index = 0 });
+        currentState.Push(new DepthState { Scope = WriteScope.InlineArray, Index = 0 });
     }
 
-    public void WriteEndPrimitiveArrays()
+    public void WriteEndInlineArray()
     {
         if (currentState.Count == 0) return;
-        if (currentState.PeekRefOrNullRef().Scope != WriteScope.PrimitiveArrays) ThrowInvalidState();
+        if (currentState.PeekRefOrNullRef().Scope != WriteScope.InlineArray) ThrowInvalidState();
         currentState.Pop();
     }
 
     // only allows primitive-values inside.
 
-    public void WriteStartArraysOfObjects(int arrayLength, IEnumerable<string> fieldNames)
+    public void WriteStartTabularArray(int arrayLength, IEnumerable<string> fieldNames)
     {
         WriteRaw((byte)'[');
         FormatInt64(arrayLength);
@@ -64,14 +64,14 @@ partial struct ToonWriter<TBufferWriter>
             WriteRaw(":"u8);
         }
 
-        currentState.Push(new DepthState { Scope = WriteScope.ObjectArrays, Index = 0 });
+        currentState.Push(new DepthState { Scope = WriteScope.TabularArray, Index = 0 });
     }
 
-    public void WriteNextRowOfArraysOfObjects()
+    public void WriteNextRowOfTabularArray()
     {
         if (currentState.Count == 0) ThrowInvalidState();
         ref var state = ref currentState.PeekRefOrNullRef();
-        if (state.Scope != WriteScope.ObjectArrays) ThrowInvalidState();
+        if (state.Scope != WriteScope.TabularArray) ThrowInvalidState();
 
         state.Index = 0; // reset index
 
@@ -79,14 +79,14 @@ partial struct ToonWriter<TBufferWriter>
         WriteIndent();
     }
 
-    public void WriteEndArraysOfObjects()
+    public void WriteEndTabularArray()
     {
         if (currentState.Count == 0) return;
-        if (currentState.PeekRefOrNullRef().Scope != WriteScope.ObjectArrays) ThrowInvalidState();
+        if (currentState.PeekRefOrNullRef().Scope != WriteScope.TabularArray) ThrowInvalidState();
         currentState.Pop();
     }
 
-    public void WriteStartMixedAndNonUniformArrays(int arrayLength)
+    public void WriteStartNonUniformArray(int arrayLength)
     {
         WriteRaw((byte)'[');
         FormatInt64(arrayLength);
@@ -97,35 +97,35 @@ partial struct ToonWriter<TBufferWriter>
             WriteRaw(":"u8);
         }
 
-        currentState.Push(new DepthState { Scope = WriteScope.MixedAndNonUniformArrays, Index = 0 });
+        currentState.Push(new DepthState { Scope = WriteScope.NonUniformArray, Index = 0 });
     }
 
-    public void WriteNextRowOfMixedAndNonUniformArrays()
+    public void WriteNextRowOfNonUniformArray()
     {
         if (currentState.Count == 0) ThrowInvalidState();
         ref var state = ref currentState.PeekRefOrNullRef();
-        if (state.Scope != WriteScope.MixedAndNonUniformArrays) ThrowInvalidState();
+        if (state.Scope != WriteScope.NonUniformArray) ThrowInvalidState();
 
         WriteRaw((byte)'\n');
         WriteIndent();
         WriteRaw("- "u8);
     }
 
-    public void WriteEmptyNextRowOfMixedAndNonUniformArrays()
+    public void WriteEmptyNextRowOfNonUniformArray()
     {
         if (currentState.Count == 0) ThrowInvalidState();
         ref var state = ref currentState.PeekRefOrNullRef();
-        if (state.Scope != WriteScope.MixedAndNonUniformArrays) ThrowInvalidState();
+        if (state.Scope != WriteScope.NonUniformArray) ThrowInvalidState();
 
         WriteRaw((byte)'\n');
         WriteIndent();
         WriteRaw("-"u8);
     }
 
-    public void WriteEndMixedAndNonUniformArrays()
+    public void WriteEndNonUniformArray()
     {
         if (currentState.Count == 0) return;
-        if (currentState.PeekRefOrNullRef().Scope != WriteScope.MixedAndNonUniformArrays) ThrowInvalidState();
+        if (currentState.PeekRefOrNullRef().Scope != WriteScope.NonUniformArray) ThrowInvalidState();
         currentState.Pop();
     }
 
@@ -134,7 +134,7 @@ partial struct ToonWriter<TBufferWriter>
         if (currentState.Count == 0) return;
         ref var state = ref currentState.PeekRefOrNullRef();
 
-        if (!(state.Scope == WriteScope.PrimitiveArrays || state.Scope == WriteScope.ObjectArrays)) return;
+        if (!(state.Scope == WriteScope.InlineArray || state.Scope == WriteScope.TabularArray)) return;
         if (state.Index != 0)
         {
             WriteRaw((byte)Delimiter);

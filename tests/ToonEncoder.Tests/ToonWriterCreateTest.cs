@@ -16,11 +16,11 @@ public class ToonWriterCreateTest
 
         var writer = ToonWriter.Create(bufferWriter);
 
-        writer.WriteStartPrimitiveArrays(3);
+        writer.WriteStartInlineArray(3);
         writer.WriteNumber(1);
         writer.WriteNumber(2);
         writer.WriteNumber(3);
-        writer.WriteEndPrimitiveArrays();
+        writer.WriteEndInlineArray();
 
         writer.Flush();
 

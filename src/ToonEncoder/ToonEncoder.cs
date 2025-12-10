@@ -59,27 +59,27 @@ public static class ToonEncoder
                 {
                     enumerator.Reset();
 
-                    toonWriter.WriteStartPrimitiveArrays(length);
+                    toonWriter.WriteStartInlineArray(length);
                     foreach (var item in enumerator)
                     {
                         WriteElement(ref toonWriter, item);
                     }
-                    toonWriter.WriteEndPrimitiveArrays();
+                    toonWriter.WriteEndInlineArray();
                     break;
                 }
                 else
                 {
                     enumerator.Reset();
-                    if (AllElementsAreSamePrimitiveObjects(ref enumerator, out var fieldNames, out length))
+                    if (AllObjectsAreSameNameAndPrimitive(ref enumerator, out var fieldNames, out length))
                     {
                         enumerator.Reset();
 
-                        toonWriter.WriteStartArraysOfObjects(length, fieldNames.Select(x => x.Name));
+                        toonWriter.WriteStartTabularArray(length, fieldNames.Select(x => x.Name));
                         var orderedProperties = new JsonProperty[fieldNames.Count];
                         var nameLookup = fieldNames.GetAlternateLookup<string>();
                         foreach (var item in enumerator)
                         {
-                            toonWriter.WriteNextRowOfArraysOfObjects();
+                            toonWriter.WriteNextRowOfTabularArray();
                             foreach (var value in item.EnumerateObject())
                             {
                                 if (nameLookup.TryGetValue(value.Name, out var key))
@@ -97,27 +97,27 @@ public static class ToonEncoder
                                 WriteElement(ref toonWriter, jsonProperty.Value);
                             }
                         }
-                        toonWriter.WriteEndArraysOfObjects();
+                        toonWriter.WriteEndTabularArray();
                         break;
                     }
                     else
                     {
                         enumerator.Reset();
 
-                        toonWriter.WriteStartMixedAndNonUniformArrays(element.GetArrayLength());
+                        toonWriter.WriteStartNonUniformArray(element.GetArrayLength());
                         foreach (var item in enumerator)
                         {
                             if (item.ValueKind == JsonValueKind.Object && !item.EnumerateObject().Any())
                             {
-                                toonWriter.WriteEmptyNextRowOfMixedAndNonUniformArrays();
+                                toonWriter.WriteEmptyNextRowOfNonUniformArray();
                             }
                             else
                             {
-                                toonWriter.WriteNextRowOfMixedAndNonUniformArrays();
+                                toonWriter.WriteNextRowOfNonUniformArray();
                                 WriteElement(ref toonWriter, item);
                             }
                         }
-                        toonWriter.WriteEndMixedAndNonUniformArrays();
+                        toonWriter.WriteEndNonUniformArray();
                         break;
                     }
                 }
@@ -180,7 +180,7 @@ public static class ToonEncoder
         return true;
     }
 
-    static bool AllElementsAreSamePrimitiveObjects(ref JsonElement.ArrayEnumerator enumerator, out HashSet<ArraysOfObjectsKey> fieldNames, out int length)
+    static bool AllObjectsAreSameNameAndPrimitive(ref JsonElement.ArrayEnumerator enumerator, out HashSet<ArraysOfObjectsKey> fieldNames, out int length)
     {
         HashSet<ArraysOfObjectsKey>? names = null;
         length = 0;
@@ -199,22 +199,13 @@ public static class ToonEncoder
                 var findIndex = 0;
                 foreach (var value in item.EnumerateObject())
                 {
-                    switch (value.Value.ValueKind)
+                    if (!IsToonPrimitive(value.Value.ValueKind))
                     {
-                        case JsonValueKind.Undefined:
-                        case JsonValueKind.Object:
-                        case JsonValueKind.Array:
-                            fieldNames = default!;
-                            return false;
-                        case JsonValueKind.String:
-                        case JsonValueKind.Number:
-                        case JsonValueKind.True:
-                        case JsonValueKind.False:
-                        case JsonValueKind.Null:
-                        default:
-                            names.Add(new(findIndex++, value.Name, ToToonPrimitive(value.Value.ValueKind)));
-                            continue;
+                        fieldNames = default!;
+                        return false;
                     }
+
+                    names.Add(new(findIndex++, value.Name));
                 }
                 length++;
                 continue;
@@ -230,7 +221,7 @@ public static class ToonEncoder
                     return false;
                 }
 
-                if (namesLookup.TryGetValue(value.Name, out var nameKey) && nameKey.PrimitiveKind == ToToonPrimitive(value.Value.ValueKind))
+                if (namesLookup.TryGetValue(value.Name, out var nameKey) && IsToonPrimitive(value.Value.ValueKind))
                 {
                     nameIndex++;
                     continue;
@@ -253,24 +244,25 @@ public static class ToonEncoder
         return true;
     }
 
-    static ToonPrimitive ToToonPrimitive(JsonValueKind kind)
+    static bool IsToonPrimitive(JsonValueKind kind)
     {
-        return kind switch
+        switch (kind)
         {
-            JsonValueKind.String => ToonPrimitive.String,
-            JsonValueKind.Null or JsonValueKind.Undefined => ToonPrimitive.String, // null is primitive of string
-            JsonValueKind.Number => ToonPrimitive.Number,
-            JsonValueKind.True or JsonValueKind.False => ToonPrimitive.Boolean,
-            _ => ToonPrimitive.NotPrimitive,
-        };
+            case JsonValueKind.String:
+            case JsonValueKind.Number:
+            case JsonValueKind.True:
+            case JsonValueKind.False:
+            case JsonValueKind.Null:
+            case JsonValueKind.Undefined:
+                return true;
+            case JsonValueKind.Object:
+            case JsonValueKind.Array:
+            default:
+                return false;
+        }
     }
 
-    public enum ToonPrimitive
-    {
-        NotPrimitive/* object or array */, String, Number, Boolean, Null
-    }
-
-    public record struct ArraysOfObjectsKey(int Index, string Name, ToonPrimitive PrimitiveKind);
+    public record struct ArraysOfObjectsKey(int Index, string Name);
 
     // Alternate is "Name"
     public class ArraysOfObjectsKeyAlternateEqualityComparer : IEqualityComparer<ArraysOfObjectsKey>, IAlternateEqualityComparer<string, ArraysOfObjectsKey>
@@ -293,7 +285,7 @@ public static class ToonEncoder
 
         public ArraysOfObjectsKey Create(string name)
         {
-            return new ArraysOfObjectsKey(0, name, ToonPrimitive.Null); // Index and PrimitiveKind are dummy here
+            return new ArraysOfObjectsKey(0, name); // Index is dummy here
         }
 
         public bool Equals(string name, ArraysOfObjectsKey other)

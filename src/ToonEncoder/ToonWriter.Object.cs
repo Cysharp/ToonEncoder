@@ -45,7 +45,7 @@ partial struct ToonWriter<TBufferWriter>
         }
 
         ref var state2 = ref currentState.PeekTRefTwoOrNullRef();
-        if (!Unsafe.IsNullRef(ref state2) && state2.Scope == WriteScope.MixedAndNonUniformArrays && state.Index == 0)
+        if (!Unsafe.IsNullRef(ref state2) && state2.Scope == WriteScope.NonUniformArray && state.Index == 0)
         {
             // Special case: no needs indent.
         }
@@ -106,7 +106,7 @@ partial struct ToonWriter<TBufferWriter>
         }
 
         ref var state = ref currentState.PeekRefOrNullRef();
-        if (state.Scope == WriteScope.PrimitiveArrays) return;
+        if (state.Scope == WriteScope.InlineArray) return;
 
         // get depth count
         var arrayOfObjectsDepth = 0;
@@ -114,7 +114,7 @@ partial struct ToonWriter<TBufferWriter>
         var mixedAndNonUniformArraysDepth = 0;
         foreach (var item in currentState.AsSpan())
         {
-            if (item.Scope == WriteScope.ObjectArrays)
+            if (item.Scope == WriteScope.TabularArray)
             {
                 arrayOfObjectsDepth++;
             }
@@ -122,7 +122,7 @@ partial struct ToonWriter<TBufferWriter>
             {
                 objectsDepth++;
             }
-            else if (item.Scope == WriteScope.MixedAndNonUniformArrays)
+            else if (item.Scope == WriteScope.NonUniformArray)
             {
                 mixedAndNonUniformArraysDepth++;
             }

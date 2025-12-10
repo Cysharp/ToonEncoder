@@ -36,9 +36,9 @@ internal enum WriteScope
     None,
     PropertyName,
     Objects,
-    PrimitiveArrays,
-    MixedAndNonUniformArrays,
-    ObjectArrays,
+    InlineArray,
+    TabularArray,
+    NonUniformArray,
 }
 
 internal struct DepthState
@@ -182,10 +182,13 @@ public ref partial struct ToonWriter<TBufferWriter>
 
     void FormatDouble(double value)
     {
+        // NaN and Infinity round to null as TOON format.
         if (!double.IsFinite(value))
         {
-            ThrowInvalidNumber();
+            WriteRaw("null"u8);
+            return;
         }
+
         const int MaxLength = 32;
         EnsureBuffer(MaxLength);
         Utf8Formatter.TryFormat(value, buffer, out var bytesWritten);
@@ -435,9 +438,6 @@ public ref partial struct ToonWriter<TBufferWriter>
 
     [DoesNotReturn]
     static void ThrowInvalidUtf16() => throw new InvalidOperationException("Invalid UTF-16 sequence.");
-
-    [DoesNotReturn]
-    static void ThrowInvalidNumber() => throw new ArgumentException("NaN and Infinity are not valid numbers.");
 
     [DoesNotReturn]
     static void ThrowInvalidState() => throw new ArgumentException("Write is not stareted write object/array.");

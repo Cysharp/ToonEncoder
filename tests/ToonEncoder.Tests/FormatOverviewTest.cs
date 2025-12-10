@@ -81,13 +81,13 @@ user:
             writer.WriteStartObject();
 
             writer.WritePropertyName("tags");
-            writer.WriteStartPrimitiveArrays(3);
+            writer.WriteStartInlineArray(3);
 
             writer.WriteString("admin");
             writer.WriteString("ops");
             writer.WriteString("dev");
 
-            writer.WriteEndPrimitiveArrays();
+            writer.WriteEndInlineArray();
 
             writer.WriteEndObject();
         });
@@ -105,19 +105,19 @@ tags[3]: admin,ops,dev
             writer.WriteStartObject();
             writer.WritePropertyName("items");
 
-            writer.WriteStartArraysOfObjects(2, ["sku", "qty", "price"]);
+            writer.WriteStartTabularArray(2, ["sku", "qty", "price"]);
 
-            writer.WriteNextRowOfArraysOfObjects();
+            writer.WriteNextRowOfTabularArray();
             writer.WriteString("A1");
             writer.WriteNumber(2);
             writer.WriteNumber(9.99);
 
-            writer.WriteNextRowOfArraysOfObjects();
+            writer.WriteNextRowOfTabularArray();
             writer.WriteString("B2");
             writer.WriteNumber(1);
             writer.WriteNumber(14.5);
 
-            writer.WriteEndArraysOfObjects();
+            writer.WriteEndTabularArray();
 
             writer.WriteEndObject();
         });
@@ -131,19 +131,19 @@ items[2]{sku,qty,price}:
         {
             writer.WriteStartObject();
             writer.WritePropertyName("users");
-            writer.WriteStartArraysOfObjects(2, ["id", "name", "role"]);
+            writer.WriteStartTabularArray(2, ["id", "name", "role"]);
 
-            writer.WriteNextRowOfArraysOfObjects();
+            writer.WriteNextRowOfTabularArray();
             writer.WriteNumber(1);
             writer.WriteString("Alice Admin");
             writer.WriteString("admin");
 
-            writer.WriteNextRowOfArraysOfObjects();
+            writer.WriteNextRowOfTabularArray();
             writer.WriteNumber(2);
             writer.WriteString("Bob Smith");
             writer.WriteString("user");
 
-            writer.WriteEndArraysOfObjects();
+            writer.WriteEndTabularArray();
             writer.WriteEndObject();
         });
 
@@ -164,21 +164,21 @@ users[2]{id,name,role}:
            writer.WriteStartObject();
            writer.WritePropertyName("items");
 
-           writer.WriteStartMixedAndNonUniformArrays(3);
+           writer.WriteStartNonUniformArray(3);
 
-           writer.WriteNextRowOfMixedAndNonUniformArrays();
+           writer.WriteNextRowOfNonUniformArray();
            writer.WriteNumber(1);
 
-           writer.WriteNextRowOfMixedAndNonUniformArrays();
+           writer.WriteNextRowOfNonUniformArray();
            writer.WriteStartObject();
            writer.WritePropertyName("a");
            writer.WriteNumber(1);
            writer.WriteEndObject();
 
-           writer.WriteNextRowOfMixedAndNonUniformArrays();
+           writer.WriteNextRowOfNonUniformArray();
            writer.WriteString("text");
 
-           writer.WriteEndMixedAndNonUniformArrays();
+           writer.WriteEndNonUniformArray();
 
            writer.WriteEndObject();
        });
@@ -199,9 +199,9 @@ items[3]:
            writer.WriteStartObject();
            writer.WritePropertyName("items");
 
-           writer.WriteStartMixedAndNonUniformArrays(2);
+           writer.WriteStartNonUniformArray(2);
 
-           writer.WriteNextRowOfMixedAndNonUniformArrays();
+           writer.WriteNextRowOfNonUniformArray();
            writer.WriteStartObject();
            writer.WritePropertyName("id");
            writer.WriteNumber(1);
@@ -209,7 +209,7 @@ items[3]:
            writer.WriteString("First");
            writer.WriteEndObject();
 
-           writer.WriteNextRowOfMixedAndNonUniformArrays();
+           writer.WriteNextRowOfNonUniformArray();
            writer.WriteStartObject();
            writer.WritePropertyName("id");
            writer.WriteNumber(2);
@@ -219,7 +219,7 @@ items[3]:
            writer.WriteBoolean(true);
            writer.WriteEndObject();
 
-           writer.WriteEndMixedAndNonUniformArrays();
+           writer.WriteEndNonUniformArray();
 
            writer.WriteEndObject();
        });
@@ -242,31 +242,31 @@ items[2]:
             writer.WriteStartObject();
             writer.WritePropertyName("items");
 
-            writer.WriteStartMixedAndNonUniformArrays(1);
+            writer.WriteStartNonUniformArray(1);
 
-            writer.WriteNextRowOfMixedAndNonUniformArrays();
+            writer.WriteNextRowOfNonUniformArray();
 
             writer.WriteStartObject();
             writer.WritePropertyName("users");
 
-            writer.WriteStartArraysOfObjects(2, ["id", "name"]);
+            writer.WriteStartTabularArray(2, ["id", "name"]);
 
-            writer.WriteNextRowOfArraysOfObjects();
+            writer.WriteNextRowOfTabularArray();
             writer.WriteNumber(1);
             writer.WriteString("Ada");
 
-            writer.WriteNextRowOfArraysOfObjects();
+            writer.WriteNextRowOfTabularArray();
             writer.WriteNumber(2);
             writer.WriteString("Bob");
 
-            writer.WriteEndArraysOfObjects();
+            writer.WriteEndTabularArray();
 
             writer.WritePropertyName("status");
             writer.WriteString("active");
 
             writer.WriteEndObject();
 
-            writer.WriteEndMixedAndNonUniformArrays();
+            writer.WriteEndNonUniformArray();
 
             writer.WriteEndObject();
         });
@@ -289,21 +289,21 @@ items[1]:
             writer.WriteStartObject();
             writer.WritePropertyName("pairs");
 
-            writer.WriteStartMixedAndNonUniformArrays(2);
+            writer.WriteStartNonUniformArray(2);
 
-            writer.WriteNextRowOfMixedAndNonUniformArrays();
-            writer.WriteStartPrimitiveArrays(2);
+            writer.WriteNextRowOfNonUniformArray();
+            writer.WriteStartInlineArray(2);
             writer.WriteNumber(1);
             writer.WriteNumber(2);
-            writer.WriteEndPrimitiveArrays();
+            writer.WriteEndInlineArray();
 
-            writer.WriteNextRowOfMixedAndNonUniformArrays();
-            writer.WriteStartPrimitiveArrays(2);
+            writer.WriteNextRowOfNonUniformArray();
+            writer.WriteStartInlineArray(2);
             writer.WriteNumber(3);
             writer.WriteNumber(4);
-            writer.WriteEndPrimitiveArrays();
+            writer.WriteEndInlineArray();
 
-            writer.WriteEndMixedAndNonUniformArrays();
+            writer.WriteEndNonUniformArray();
 
             writer.WriteEndObject();
         });
@@ -322,8 +322,8 @@ pairs[2]:
         {
             writer.WriteStartObject();
             writer.WritePropertyName("items");
-            writer.WriteStartPrimitiveArrays(0);
-            writer.WriteEndPrimitiveArrays();
+            writer.WriteStartInlineArray(0);
+            writer.WriteEndInlineArray();
             writer.WriteEndObject();
         });
         await Assert.That(basic).IsEqualTo("""
@@ -339,21 +339,21 @@ items[0]:
             writer.WriteStartObject();
             writer.WritePropertyName("items");
 
-            writer.WriteStartArraysOfObjects(2, ["sku", "name", "qty", "price"]);
+            writer.WriteStartTabularArray(2, ["sku", "name", "qty", "price"]);
 
-            writer.WriteNextRowOfArraysOfObjects();
+            writer.WriteNextRowOfTabularArray();
             writer.WriteString("A1");
             writer.WriteString("Widget");
             writer.WriteNumber(2);
             writer.WriteNumber(9.99);
 
-            writer.WriteNextRowOfArraysOfObjects();
+            writer.WriteNextRowOfTabularArray();
             writer.WriteString("B2");
             writer.WriteString("Gadget");
             writer.WriteNumber(1);
             writer.WriteNumber(14.5);
 
-            writer.WriteEndArraysOfObjects();
+            writer.WriteEndTabularArray();
 
             writer.WriteEndObject();
         });
@@ -369,21 +369,21 @@ items[2]{sku,name,qty,price}:
             writer.WriteStartObject();
             writer.WritePropertyName("items");
 
-            writer.WriteStartArraysOfObjects(2, ["sku", "name", "qty", "price"]);
+            writer.WriteStartTabularArray(2, ["sku", "name", "qty", "price"]);
 
-            writer.WriteNextRowOfArraysOfObjects();
+            writer.WriteNextRowOfTabularArray();
             writer.WriteString("A1");
             writer.WriteString("Widget");
             writer.WriteNumber(2);
             writer.WriteNumber(9.99);
 
-            writer.WriteNextRowOfArraysOfObjects();
+            writer.WriteNextRowOfTabularArray();
             writer.WriteString("B2");
             writer.WriteString("Gadget");
             writer.WriteNumber(1);
             writer.WriteNumber(14.5);
 
-            writer.WriteEndArraysOfObjects();
+            writer.WriteEndTabularArray();
 
             writer.WriteEndObject();
         }, Delimiter.Tab);
@@ -399,21 +399,21 @@ items[2	]{sku	name	qty	price}:
             writer.WriteStartObject();
             writer.WritePropertyName("items");
 
-            writer.WriteStartArraysOfObjects(2, ["sku", "name", "qty", "price"]);
+            writer.WriteStartTabularArray(2, ["sku", "name", "qty", "price"]);
 
-            writer.WriteNextRowOfArraysOfObjects();
+            writer.WriteNextRowOfTabularArray();
             writer.WriteString("A1");
             writer.WriteString("Widget");
             writer.WriteNumber(2);
             writer.WriteNumber(9.99);
 
-            writer.WriteNextRowOfArraysOfObjects();
+            writer.WriteNextRowOfTabularArray();
             writer.WriteString("B2");
             writer.WriteString("Gadget");
             writer.WriteNumber(1);
             writer.WriteNumber(14.5);
 
-            writer.WriteEndArraysOfObjects();
+            writer.WriteEndTabularArray();
 
             writer.WriteEndObject();
         }, Delimiter.Pipe);
