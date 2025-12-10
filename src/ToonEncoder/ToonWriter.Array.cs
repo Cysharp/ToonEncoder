@@ -67,6 +67,45 @@ partial struct ToonWriter<TBufferWriter>
         currentState.Push(new DepthState { Scope = WriteScope.TabularArray, Index = 0 });
     }
 
+    public void WriteStartTabularArray(int arrayLength, IEnumerable<ReadOnlyMemory<byte>> utf8FieldNames, bool escaped)
+    {
+        WriteRaw((byte)'[');
+        FormatInt64(arrayLength);
+        WriteDelimiterForArrayLength();
+        WriteRaw("]{"u8);
+
+        var isFirst = true;
+        foreach (var fieldName in utf8FieldNames)
+        {
+            if (isFirst)
+            {
+                isFirst = false;
+            }
+            else
+            {
+                WriteRaw((byte)Delimiter);
+            }
+
+            if (escaped)
+            {
+                WriteEscapedUtf8String(fieldName.Span, QuoteScope.ObjectKey);
+            }
+            else
+            {
+                WriteUtf8String(fieldName.Span, QuoteScope.ObjectKey);
+            }
+        }
+
+        WriteRaw("}"u8);
+        if (!TryWriteKeyValueSeparator(emitSpace: false))
+        {
+            WriteRaw(":"u8);
+        }
+
+        currentState.Push(new DepthState { Scope = WriteScope.TabularArray, Index = 0 });
+    }
+
+
     public void WriteNextRowOfTabularArray()
     {
         if (currentState.Count == 0) ThrowInvalidState();

@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.IO.Hashing;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -52,15 +53,15 @@ static partial class ToonEncoder
                     {
                         enumerator.Reset();
 
-                        toonWriter.WriteStartTabularArray(length, fieldNames.Select(x => x.Name));
+                        toonWriter.WriteStartTabularArray(length, fieldNames.Select(x => (ReadOnlyMemory<byte>)x.Name.AsMemory()), escaped: true);
                         var orderedProperties = new JsonProperty[fieldNames.Count];
-                        var nameLookup = fieldNames.GetAlternateLookup<string>();
+                        var nameLookup = fieldNames.GetAlternateLookup<ReadOnlySpan<byte>>();
                         foreach (var item in enumerator)
                         {
                             toonWriter.WriteNextRowOfTabularArray();
                             foreach (var value in item.EnumerateObject())
                             {
-                                if (nameLookup.TryGetValue(value.Name, out var key))
+                                if (nameLookup.TryGetValue(JsonMarshal.GetRawUtf8PropertyName(value), out var key))
                                 {
                                     orderedProperties[key.Index] = value;
                                 }
@@ -186,14 +187,14 @@ static partial class ToonEncoder
                         return false;
                     }
 
-                    names.Add(new(findIndex++, value.Name));
+                    names.Add(new(findIndex++, JsonMarshal.GetRawUtf8PropertyName(value).ToArray()));
                 }
                 length++;
                 continue;
             }
 
             var nameIndex = 0;
-            var namesLookup = names.GetAlternateLookup<string>();
+            var namesLookup = names.GetAlternateLookup<ReadOnlySpan<byte>>();
             foreach (var value in item.EnumerateObject())
             {
                 if (nameIndex >= names.Count)
@@ -202,7 +203,7 @@ static partial class ToonEncoder
                     return false;
                 }
 
-                if (namesLookup.TryGetValue(value.Name, out var nameKey) && IsToonPrimitive(value.Value.ValueKind))
+                if (namesLookup.TryGetValue(JsonMarshal.GetRawUtf8PropertyName(value), out var nameKey) && IsToonPrimitive(value.Value.ValueKind))
                 {
                     nameIndex++;
                     continue;
@@ -243,10 +244,10 @@ static partial class ToonEncoder
         }
     }
 
-    public record struct ArraysOfObjectsKey(int Index, string Name);
+    public record struct ArraysOfObjectsKey(int Index, byte[] Name);
 
-    // Alternate is "Name"
-    public class ArraysOfObjectsKeyAlternateEqualityComparer : IEqualityComparer<ArraysOfObjectsKey>, IAlternateEqualityComparer<string, ArraysOfObjectsKey>
+    // Alternate is "Name"(UTF-8 slice)
+    public class ArraysOfObjectsKeyAlternateEqualityComparer : IEqualityComparer<ArraysOfObjectsKey>, IAlternateEqualityComparer<ReadOnlySpan<byte>, ArraysOfObjectsKey>
     {
         public static readonly ArraysOfObjectsKeyAlternateEqualityComparer Default = new();
 
@@ -254,29 +255,30 @@ static partial class ToonEncoder
 
         public bool Equals(ArraysOfObjectsKey x, ArraysOfObjectsKey y)
         {
-            return x.Name == y.Name;
+            return x.Name.SequenceEqual(y.Name);
         }
 
         public int GetHashCode(ArraysOfObjectsKey obj)
         {
-            return obj.Name.GetHashCode();
+            return GetHashCode(obj.Name);
         }
 
         // IAlternateEqualityComparer
 
-        public ArraysOfObjectsKey Create(string name)
+        public ArraysOfObjectsKey Create(ReadOnlySpan<byte> alternate)
         {
-            return new ArraysOfObjectsKey(0, name); // Index is dummy here
+            throw new NotSupportedException();
         }
 
-        public bool Equals(string name, ArraysOfObjectsKey other)
+        public bool Equals(ReadOnlySpan<byte> alternate, ArraysOfObjectsKey other)
         {
-            return name == other.Name;
+            return alternate.SequenceEqual(other.Name);
         }
 
-        public int GetHashCode(string name)
+        public int GetHashCode(ReadOnlySpan<byte> alternate)
         {
-            return name.GetHashCode();
+            // System.IO.Hashing package, cast to int is safe for hashing
+            return unchecked((int)XxHash3.HashToUInt64(alternate));
         }
     }
 }
