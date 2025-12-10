@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -91,7 +92,7 @@ public static partial class ToonEncoder
         }
 
         var rowPropertyCount = firstRow.GetPropertyCount();
-        toonWriter.WriteStartTabularArray(length, array[0].EnumerateObject().Select(x => x.Name));
+        toonWriter.WriteStartTabularArray(length, array[0].EnumerateObject().Select(x => (ReadOnlyMemory<byte>)JsonMarshal.GetRawUtf8PropertyName(x).ToArray()), escaped: true);
         foreach (var item in array.EnumerateArray())
         {
             toonWriter.WriteNextRowOfTabularArray();
