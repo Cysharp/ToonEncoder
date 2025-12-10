@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.IO.Hashing;
 using System.Runtime.InteropServices;
 using System.Text;
