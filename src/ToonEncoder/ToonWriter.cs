@@ -74,6 +74,7 @@ internal static class ToonSearchValues
 
     public static readonly SearchValues<char> Utf16NeedQuoteChars = SearchValues.Create(":\"\\{}[]()\n\r\t");
     public static readonly SearchValues<byte> Utf8NeedQuoteChars = SearchValues.Create(":\"\\{}[]()\n\r\t"u8);
+
     public static readonly SearchValues<char> Utf16NeedEscapeChars = SearchValues.Create("\"\\\n\r\t");
     public static readonly SearchValues<byte> Utf8NeedEscapeChars = SearchValues.Create("\"\\\n\r\t"u8);
 }
@@ -154,6 +155,7 @@ public ref partial struct ToonWriter<TBufferWriter>
         WriteUtf8String(utf8Value, inScope ? QuoteScope.InArray : QuoteScope.None);
     }
 
+    // TOON's escape character is similar as Json's one so JsonElement has already escaped string, don't need to escape.
     public void WriteEscapedString(ReadOnlySpan<byte> escapedUtf8Value)
     {
         TryWriteKeyValueSeparator();
