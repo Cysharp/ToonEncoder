@@ -19,19 +19,6 @@ var toon = ToonEncoder.Encode(
     JsonSerializer.SerializeToElement(persons, ToonEncoder.RecommendJsonSerializerOptions)
 );
 
-
-var jsonWriter = new Utf8JsonWriter(Console.OpenStandardOutput(), new JsonWriterOptions
-{
-    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    Indented = true,
-});
-
-// ToonEncoder.Encode(jsonWriter, JsonSerializer.SerializeToElement(persons, ToonEncoder.RecommendJsonSerializerOptions));
-
-jsonWriter.Flush();
-
-Console.WriteLine("---");
-
  Console.WriteLine(toon);
 
 public record Person(int Id, string Name, int Age);

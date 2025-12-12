@@ -1,4 +1,5 @@
-﻿using System.Buffers;
+﻿using Cysharp.AI.Internal;
+using System.Buffers;
 using System.IO.Pipelines;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -21,7 +22,7 @@ public static partial class ToonEncoder
 
     public static string Encode(JsonElement element)
     {
-        var bufferWriter = new ArrayBufferWriter<byte>();
+        using var bufferWriter = new ValueArrayPoolBufferWriter<byte>();
         Encode(bufferWriter, element);
         return Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
     }
@@ -49,7 +50,7 @@ public static partial class ToonEncoder
 
     public static byte[] EncodeToUtf8Bytes(JsonElement element)
     {
-        var bufferWriter = new ArrayBufferWriter<byte>();
+        using var bufferWriter = new ValueArrayPoolBufferWriter<byte>();
         Encode(bufferWriter, element);
         return bufferWriter.WrittenSpan.ToArray();
     }
@@ -58,7 +59,7 @@ public static partial class ToonEncoder
 
     public static string EncodeAsTabularArray(JsonElement element)
     {
-        var bufferWriter = new ArrayBufferWriter<byte>();
+        using var bufferWriter = new ValueArrayPoolBufferWriter<byte>();
         EncodeAsTabularArray(bufferWriter, element);
         return Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
     }

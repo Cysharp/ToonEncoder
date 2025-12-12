@@ -8,7 +8,7 @@ namespace Cysharp.AI;
 
 public class ToonConverter<T> : System.Text.Json.Serialization.JsonConverter<T>
 {
-
+    // TODO: Implement Toon encoding/decoding logic
     public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
     {
         // ToonEncoder.Encode(
