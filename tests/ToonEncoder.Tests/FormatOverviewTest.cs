@@ -13,7 +13,7 @@ public class FormatOverviewTest
     static string Encode(WriteBody write, Delimiter delimiter = Delimiter.Comma)
     {
         var bufferWriter = new System.Buffers.ArrayBufferWriter<byte>();
-        var toonWriter = ToonWriter.Create(bufferWriter, delimiter);
+        var toonWriter = ToonWriter.Create(ref bufferWriter, delimiter);
         write(ref toonWriter);
         toonWriter.Flush();
         return Encoding.UTF8.GetString(bufferWriter.WrittenSpan).Replace("\n", Environment.NewLine);

@@ -29,7 +29,7 @@ public class ToonEncoderEncodeAsTabularArrayTests
         var element = CreateUniformArray();
         var bufferWriter = new ArrayBufferWriter<byte>();
 
-        Cysharp.AI.ToonEncoder.EncodeAsTabularArray(bufferWriter, element);
+        Cysharp.AI.ToonEncoder.EncodeAsTabularArray(ref bufferWriter, element);
 
         var result = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
         await Assert.That(result).IsEqualTo(ExpectedTabular);
@@ -41,7 +41,7 @@ public class ToonEncoderEncodeAsTabularArrayTests
         var element = CreateUniformArray();
         await using var stream = new MemoryStream();
 
-        await Cysharp.AI.ToonEncoder.EncodeAsTabularArrayAsync<ArrayBufferWriter<byte>>(stream, element, CancellationToken.None);
+        await Cysharp.AI.ToonEncoder.EncodeAsTabularArrayAsync(stream, element, CancellationToken.None);
 
         var result = Encoding.UTF8.GetString(stream.ToArray());
         await Assert.That(result).IsEqualTo(ExpectedTabular);
@@ -52,9 +52,9 @@ public class ToonEncoderEncodeAsTabularArrayTests
     {
         var element = CreateUniformArray();
         var bufferWriter = new ArrayBufferWriter<byte>();
-        var toonWriter = ToonWriter.Create(bufferWriter);
+        var toonWriter = ToonWriter.Create(ref bufferWriter);
 
-        Cysharp.AI.ToonEncoder.EncodeAsTabularArray(toonWriter, element);
+        Cysharp.AI.ToonEncoder.EncodeAsTabularArray(ref toonWriter, element);
 
         var result = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
         await Assert.That(result).IsEqualTo(ExpectedTabular);
@@ -65,9 +65,9 @@ public class ToonEncoderEncodeAsTabularArrayTests
     {
         var element = ParseJson("[]");
         var bufferWriter = new ArrayBufferWriter<byte>();
-        var toonWriter = ToonWriter.Create(bufferWriter);
+        var toonWriter = ToonWriter.Create(ref bufferWriter);
 
-        Cysharp.AI.ToonEncoder.EncodeAsTabularArray(toonWriter, element);
+        Cysharp.AI.ToonEncoder.EncodeAsTabularArray(ref toonWriter, element);
 
         var result = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
         await Assert.That(result).IsEqualTo(string.Empty);
@@ -138,8 +138,8 @@ public class ToonEncoderEncodeAsTabularArrayTests
         try
         {
             var bufferWriter = new ArrayBufferWriter<byte>();
-            var toonWriter = ToonWriter.Create(bufferWriter);
-            Cysharp.AI.ToonEncoder.EncodeAsTabularArray(toonWriter, element);
+            var toonWriter = ToonWriter.Create(ref bufferWriter);
+            Cysharp.AI.ToonEncoder.EncodeAsTabularArray(ref toonWriter, element);
         }
         catch (ArgumentException ex)
         {

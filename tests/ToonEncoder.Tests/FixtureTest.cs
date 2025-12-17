@@ -108,9 +108,9 @@ public class FixtureTest
         var delimiter = (Delimiter)(byte)new Rune(delimiterString).Value;
 
         var bufferWriter = new ArrayBufferWriter<byte>();
-        var toonWriter = ToonWriter.Create(bufferWriter, delimiter);
+        var toonWriter = ToonWriter.Create(ref bufferWriter, delimiter);
 
-        Cysharp.AI.ToonEncoder.Encode(toonWriter, testData.Fixture.Input);
+        Cysharp.AI.ToonEncoder.Encode(ref toonWriter, testData.Fixture.Input);
 
         var toon = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
         await Assert.That(toon).IsEqualTo(testData.Fixture.Expected);

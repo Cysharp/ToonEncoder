@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/sandbox/">
+    <Project Path="sandbox/BenchmarkSuite/BenchmarkSuite.csproj" Id="a601f4ad-3dfd-43cc-b51b-845076f73eef" />
     <Project Path="sandbox/ConsoleApp1/ConsoleApp1.csproj" />
   </Folder>
   <Folder Name="/src/">

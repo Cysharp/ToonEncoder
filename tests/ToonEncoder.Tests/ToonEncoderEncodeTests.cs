@@ -28,7 +28,7 @@ public class ToonEncoderEncodeTests
         var element = CreateSampleElement();
         var bufferWriter = new ArrayBufferWriter<byte>();
 
-        Cysharp.AI.ToonEncoder.Encode(bufferWriter, element);
+        Cysharp.AI.ToonEncoder.Encode(ref bufferWriter, element);
 
         var result = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
         await Assert.That(result).IsEqualTo(ExpectedToon);
@@ -40,7 +40,7 @@ public class ToonEncoderEncodeTests
         var element = CreateSampleElement();
         await using var stream = new MemoryStream();
 
-        await Cysharp.AI.ToonEncoder.EncodeAsync<ArrayBufferWriter<byte>>(stream, element, CancellationToken.None);
+        await Cysharp.AI.ToonEncoder.EncodeAsync(stream, element, CancellationToken.None);
 
         var result = Encoding.UTF8.GetString(stream.ToArray());
         await Assert.That(result).IsEqualTo(ExpectedToon);
@@ -51,9 +51,9 @@ public class ToonEncoderEncodeTests
     {
         var element = CreateSampleElement();
         var bufferWriter = new ArrayBufferWriter<byte>();
-        var toonWriter = ToonWriter.Create(bufferWriter);
+        var toonWriter = ToonWriter.Create(ref bufferWriter);
 
-        Cysharp.AI.ToonEncoder.Encode(toonWriter, element);
+        Cysharp.AI.ToonEncoder.Encode(ref toonWriter, element);
 
         var result = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
         await Assert.That(result).IsEqualTo(ExpectedToon);

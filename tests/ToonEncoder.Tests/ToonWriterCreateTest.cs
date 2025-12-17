@@ -14,7 +14,7 @@ public class ToonWriterCreateTest
         var buffer = new byte[256];
         var bufferWriter = new StructBufferWriter(buffer);
 
-        var writer = ToonWriter.Create(bufferWriter);
+        var writer = ToonWriter.Create(ref bufferWriter);
 
         writer.WriteStartInlineArray(3);
         writer.WriteNumber(1);

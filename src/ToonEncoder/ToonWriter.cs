@@ -10,17 +10,16 @@ namespace Cysharp.AI;
 
 public static class ToonWriter
 {
-    public static ToonWriter<TBufferWriter> Create<TBufferWriter>(in TBufferWriter bufferWriter)
+    public static ToonWriter<TBufferWriter> Create<TBufferWriter>(ref TBufferWriter bufferWriter)
         where TBufferWriter : IBufferWriter<byte>
     {
-        // "in"(readonly) but TBufferWriter allows mutable struct so convert to "ref"
-        return new ToonWriter<TBufferWriter>(ref Unsafe.AsRef(in bufferWriter), Delimiter.Comma); // Comma is default
+        return new ToonWriter<TBufferWriter>(ref bufferWriter, Delimiter.Comma); // Comma is default
     }
 
-    public static ToonWriter<TBufferWriter> Create<TBufferWriter>(in TBufferWriter bufferWriter, Delimiter delimiter)
+    public static ToonWriter<TBufferWriter> Create<TBufferWriter>(ref TBufferWriter bufferWriter, Delimiter delimiter)
         where TBufferWriter : IBufferWriter<byte>
     {
-        return new ToonWriter<TBufferWriter>(ref Unsafe.AsRef(in bufferWriter), delimiter);
+        return new ToonWriter<TBufferWriter>(ref bufferWriter, delimiter);
     }
 }
 
