@@ -11,9 +11,9 @@ public class ToonConverter<T> : System.Text.Json.Serialization.JsonConverter<T>
     {
     }
 
-    public ToonConverter(JsonSerializerOptions JsonSerializerOptionsWithoutToonConverters)
+    public ToonConverter(JsonSerializerOptions jsonSerializerOptionsWithoutToonConverters)
     {
-        this.jsonSerializerOptions = JsonSerializerOptionsWithoutToonConverters;
+        this.jsonSerializerOptions = jsonSerializerOptionsWithoutToonConverters;
     }
 
     // don't use JsonSerializerOptions argument to avoid stack-overflow(recursive Toon encoding).
@@ -47,9 +47,9 @@ public class ToonTabularArrayConverter<T> : System.Text.Json.Serialization.JsonC
     {
     }
 
-    public ToonTabularArrayConverter(JsonSerializerOptions JsonSerializerOptionsWithoutToonConverters)
+    public ToonTabularArrayConverter(JsonSerializerOptions jsonSerializerOptionsWithoutToonConverters)
     {
-        this.jsonSerializerOptions = JsonSerializerOptionsWithoutToonConverters;
+        this.jsonSerializerOptions = jsonSerializerOptionsWithoutToonConverters;
     }
 
     public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions _)

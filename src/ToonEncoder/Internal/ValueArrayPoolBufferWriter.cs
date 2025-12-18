@@ -4,7 +4,8 @@ using System.Runtime.CompilerServices;
 
 namespace Cysharp.AI.Internal;
 
-internal struct ValueArrayPoolBufferWriter<T> : IBufferWriter<T>, IDisposable
+// internal but Source Generator uses it so make public.
+public struct ValueArrayPoolBufferWriter<T> : IBufferWriter<T>, IDisposable
 {
     const int DefaultInitialBufferSize = 256;
 

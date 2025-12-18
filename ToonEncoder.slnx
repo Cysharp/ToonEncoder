@@ -4,6 +4,7 @@
     <Project Path="sandbox/ConsoleApp1/ConsoleApp1.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/ToonEncoder.Generator/ToonEncoder.Generator.csproj" Id="a2d2b5e5-c45d-4a64-a860-37af7ed11b60" />
     <Project Path="src/ToonEncoder/ToonEncoder.csproj" />
   </Folder>
   <Folder Name="/tests/">

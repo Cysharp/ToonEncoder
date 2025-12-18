@@ -90,6 +90,7 @@ public static partial class ToonEncoder
     {
         var toonWriter = ToonWriter.Create(ref bufferWriter);
         EncodeAsTabularArray(ref toonWriter, element);
+        toonWriter.Flush();
     }
 
     public static byte[] EncodeAsTabularArrayToUtf8Bytes(JsonElement element)
@@ -181,7 +182,6 @@ public static partial class ToonEncoder
             }
         }
         toonWriter.WriteEndTabularArray();
-        toonWriter.Flush();
 
         static void ThrowIfNotObject()
         {
