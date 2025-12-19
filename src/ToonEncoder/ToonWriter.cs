@@ -154,6 +154,54 @@ public ref partial struct ToonWriter<TBufferWriter>
         WriteUtf8String(utf8Value, inScope ? QuoteScope.InArray : QuoteScope.None);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void WriteString(Guid value)
+    {
+        TryWriteKeyValueSeparator();
+        WriteDelimiter();
+
+        EnsureBuffer(36);
+        Utf8Formatter.TryFormat(value, buffer, out var bytesWritten);
+        buffer = buffer.Slice(bytesWritten);
+        written += bytesWritten;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void WriteString(DateTime value)
+    {
+        TryWriteKeyValueSeparator();
+        WriteDelimiter();
+
+        EnsureBuffer(33);
+        Utf8Formatter.TryFormat(value, buffer, out var bytesWritten, new StandardFormat('O'));
+        buffer = buffer.Slice(bytesWritten);
+        written += bytesWritten;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void WriteString(DateTimeOffset value)
+    {
+        TryWriteKeyValueSeparator();
+        WriteDelimiter();
+
+        EnsureBuffer(33);
+        Utf8Formatter.TryFormat(value, buffer, out var bytesWritten, new StandardFormat('O'));
+        buffer = buffer.Slice(bytesWritten);
+        written += bytesWritten;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void WriteString(TimeSpan value)
+    {
+        TryWriteKeyValueSeparator();
+        WriteDelimiter();
+
+        EnsureBuffer(8);
+        Utf8Formatter.TryFormat(value, buffer, out var bytesWritten);
+        buffer = buffer.Slice(bytesWritten);
+        written += bytesWritten;
+    }
+
     // TOON's escape character is similar as Json's one so JsonElement has already escaped string, don't need to escape.
     public void WriteEscapedString(ReadOnlySpan<byte> escapedUtf8Value)
     {
