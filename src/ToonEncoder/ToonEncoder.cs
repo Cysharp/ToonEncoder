@@ -70,13 +70,22 @@ public static partial class ToonEncoder
     }
 
     // Json(Array) to Toon(TabularArray)
-
-    public static string EncodeAsTabularArray(JsonElement element)
+    
+    /// <summary>
+    /// Encodes a JSON array of objects as a tabular array.
+    /// </summary>
+    /// <remarks>All objects in the input array must have identical property names in the same order, and all
+    /// property values must be Toon primitive types.</remarks>
+    /// <param name="array">A JsonElement representing an array of objects to encode as a tabular array. Each object must have the same
+    /// property names in the same order.</param>
+    /// <exception cref="ArgumentException">Thrown if the provided JsonElement is not an array, if any element in the array is not an object, if objects
+    /// have differing property names or counts, or if any property value is not a Toon primitive.</exception>
+    public static string EncodeAsTabularArray(JsonElement array)
     {
         var bufferWriter = new ValueArrayPoolBufferWriter<byte>();
         try
         {
-            EncodeAsTabularArray(ref bufferWriter, element);
+            EncodeAsTabularArray(ref bufferWriter, array);
             return Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
         }
         finally
@@ -84,33 +93,60 @@ public static partial class ToonEncoder
             bufferWriter.Dispose();
         }
     }
-
-    public static void EncodeAsTabularArray<TBufferWriter>(ref TBufferWriter bufferWriter, JsonElement element)
+    
+    /// <summary>
+    /// Encodes a JSON array of objects as a tabular array.
+    /// </summary>
+    /// <remarks>All objects in the input array must have identical property names in the same order, and all
+    /// property values must be Toon primitive types.</remarks>
+    /// <param name="array">A JsonElement representing an array of objects to encode as a tabular array. Each object must have the same
+    /// property names in the same order.</param>
+    /// <exception cref="ArgumentException">Thrown if the provided JsonElement is not an array, if any element in the array is not an object, if objects
+    /// have differing property names or counts, or if any property value is not a Toon primitive.</exception>
+    public static void EncodeAsTabularArray<TBufferWriter>(ref TBufferWriter bufferWriter, JsonElement array)
         where TBufferWriter : IBufferWriter<byte>
     {
         var toonWriter = ToonWriter.Create(ref bufferWriter);
-        EncodeAsTabularArray(ref toonWriter, element);
+        EncodeAsTabularArray(ref toonWriter, array);
         toonWriter.Flush();
     }
-
-    public static byte[] EncodeAsTabularArrayToUtf8Bytes(JsonElement element)
+        
+    /// <summary>
+    /// Encodes a JSON array of objects as a tabular array.
+    /// </summary>
+    /// <remarks>All objects in the input array must have identical property names in the same order, and all
+    /// property values must be Toon primitive types.</remarks>
+    /// <param name="array">A JsonElement representing an array of objects to encode as a tabular array. Each object must have the same
+    /// property names in the same order.</param>
+    /// <exception cref="ArgumentException">Thrown if the provided JsonElement is not an array, if any element in the array is not an object, if objects
+    /// have differing property names or counts, or if any property value is not a Toon primitive.</exception>
+    public static byte[] EncodeAsTabularArrayToUtf8Bytes(JsonElement array)
     {
         var bufferWriter = new ValueArrayPoolBufferWriter<byte>();
         try
         {
-            EncodeAsTabularArray(ref bufferWriter, element);
+            EncodeAsTabularArray(ref bufferWriter, array);
             return bufferWriter.WrittenSpan.ToArray();
         }
         finally
         {
             bufferWriter.Dispose();
         }
-    }
-
-    public static async ValueTask EncodeAsTabularArrayAsync(Stream utf8Stream, JsonElement element, CancellationToken cancellationToken = default)
+    }    
+    
+    /// <summary>
+    /// Encodes a JSON array of objects as a tabular array.
+    /// </summary>
+    /// <remarks>All objects in the input array must have identical property names in the same order, and all
+    /// property values must be Toon primitive types.</remarks>
+    /// <param name="array">A JsonElement representing an array of objects to encode as a tabular array. Each object must have the same
+    /// property names in the same order.</param>
+    /// <exception cref="ArgumentException">Thrown if the provided JsonElement is not an array, if any element in the array is not an object, if objects
+    /// have differing property names or counts, or if any property value is not a Toon primitive.</exception>
+    public static async ValueTask EncodeAsTabularArrayAsync(Stream utf8Stream, JsonElement array, CancellationToken cancellationToken = default)
     {
         var writer = PipeWriter.Create(utf8Stream);
-        EncodeAsTabularArray(ref writer, element);
+        EncodeAsTabularArray(ref writer, array);
         await writer.FlushAsync(cancellationToken);
     }
 
