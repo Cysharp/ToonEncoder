@@ -1,4 +1,5 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 
 namespace Cysharp.AI;
 
@@ -44,13 +45,10 @@ namespace Cysharp.AI
 
     static void EmitTabularArrayConverter(SourceProductionContext sourceProductionContext, TabularArrayInfo tabularArrayInfo)
     {
-        //sourceProductionContext.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor(
-        //    "TEG001",
-        //    "Generating Toon Tabular Array Converter",
-        //    $"Generating Toon Tabular Array Converter for {tabularArrayInfo.ElementFullName}",
-        //    "ToonEncoderGenerator",
-        //    DiagnosticSeverity.Info,
-        //    isEnabledByDefault: true), Location.None));
+        if (!tabularArrayInfo.Verify(sourceProductionContext))
+        {
+            return;
+        }
 
         var arrayType = $"{tabularArrayInfo.ElementFullName}[]";
         var utf8FieldNames = string.Join(", ", tabularArrayInfo.PropertyNames.Select(n => $"\"{n}\"u8.ToArray()"));
@@ -176,10 +174,20 @@ namespace Cysharp.AI.Converters
     }
 }
 
+public record struct LocationSlim(string FilePath, TextSpan TextSpan, LinePositionSpan LinePositionSpan)
+{
+    public Location CreateLocation()
+    {
+        if (FilePath == null) return Location.None;
+        return Location.Create(FilePath, TextSpan, LinePositionSpan);
+    }
+}
+
 public record TabularArrayInfo
 {
     public string ElementFullName { get; }
     public string ConverterName { get; }
+    public LocationSlim Location { get; }
     public string[] PropertyNames { get; }
     public ToonPrimitiveKind[] PropertyKinds { get; }
 
@@ -187,6 +195,16 @@ public record TabularArrayInfo
     {
         ElementFullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         ConverterName = $"{ElementFullName.Replace("global::", "").Replace(".", "_")}TabularArrayConverter";
+
+        var location = symbol.Locations.FirstOrDefault();
+        if (location != null)
+        {
+            var lineSpan = location.GetLineSpan();
+            Location = new LocationSlim(
+                location.SourceTree?.FilePath ?? "",
+                location.SourceSpan,
+                lineSpan.Span);
+        }
 
         var nameAndKinds = symbol.GetMembers()
             .Where(x => x.DeclaredAccessibility == Accessibility.Public)
@@ -271,6 +289,39 @@ public record TabularArrayInfo
 
         PropertyNames = nameAndKinds.Select(x => x.Name).ToArray();
         PropertyKinds = nameAndKinds.Select(x => x.Kind).ToArray();
+    }
+
+    public bool Verify(SourceProductionContext sourceProductionContext)
+    {
+        var hasUnsupported = false;
+        List<string>? unsupportedPropertyNames = null;
+        for (int i = 0; i < PropertyKinds.Length; i++)
+        {
+            if (PropertyKinds[i] == ToonPrimitiveKind.Unsupported)
+            {
+                if (unsupportedPropertyNames == null)
+                {
+                    unsupportedPropertyNames = new List<string>();
+                }
+                unsupportedPropertyNames.Add(PropertyNames[i]);
+                hasUnsupported = true;
+            }
+        }
+
+        if (hasUnsupported)
+        {
+            sourceProductionContext.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor(
+                "TEG001",
+                "Unsupported Property Type for Toon Tabular Array Converter",
+                $"The property type is not supported for Toon Tabular Array serialization in {ElementFullName.Replace("global::", "")}.{string.Join(", ", unsupportedPropertyNames)}.",
+                "ToonEncoderGenerator",
+                DiagnosticSeverity.Error,
+                isEnabledByDefault: true), Location.CreateLocation()));
+
+            return false;
+        }
+
+        return true;
     }
 }
 

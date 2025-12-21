@@ -43,4 +43,8 @@ Console.WriteLine(hoge);
 [Cysharp.AI.GenerateToonTabularArrayConverter]
 public record Person(int Id, string Name, int Age);
 
+public class Dummy
+{
+}
+
 
