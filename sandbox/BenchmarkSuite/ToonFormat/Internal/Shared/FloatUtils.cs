@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 
 namespace ToonFormat.Internal.Shared
 {
@@ -14,13 +14,13 @@ namespace ToonFormat.Internal.Shared
         /// <returns></returns>
         public static bool NearlyEqual(double a, double b, double absEps = 1e-12, double relEps = 1e-9)
         {
-            if (double.IsNaN(a) && double.IsNaN(b)) return true;     // ÒµÎñÉÏ³£ĞèÒªÊÓ NaN == NaN
+            if (double.IsNaN(a) && double.IsNaN(b)) return true;     // ï¾’ï½µï¾î…„ï¾ï½³ï½£ï¾é¨ï½ªï¾Šï¾“ NaN == NaN
             if (double.IsInfinity(a) || double.IsInfinity(b)) return a.Equals(b);
-            if (a == b) return true;                                  // ¸²¸Ç 0.0 == -0.0¡¢ÍE«ÏàµÈ
+            if (a == b) return true;                                  // ï½¸ï½²ï½¸ï¾‡ 0.0 == -0.0ï½¡ï½¢ï¾ãƒ»ï½«ï¾çŠ’ï¾ˆ
 
             var diff = Math.Abs(a - b);
             var scale = Math.Max(Math.Abs(a), Math.Abs(b));
-            if (scale == 0) return diff <= absEps;                    // Á½Õß¶¼½Ó½E0
+            if (scale == 0) return diff <= absEps;                    // ï¾ï½½ï¾•ï¾Ÿï½¶ï½¼ï½½ï¾“ï½½ãƒ»0
             return diff <= Math.Max(absEps, relEps * scale);
         }
 

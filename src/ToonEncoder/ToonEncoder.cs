@@ -70,7 +70,7 @@ public static partial class ToonEncoder
     }
 
     // Json(Array) to Toon(TabularArray)
-    
+
     /// <summary>
     /// Encodes a JSON array of objects as a tabular array.
     /// </summary>
@@ -93,7 +93,7 @@ public static partial class ToonEncoder
             bufferWriter.Dispose();
         }
     }
-    
+
     /// <summary>
     /// Encodes a JSON array of objects as a tabular array.
     /// </summary>
@@ -110,7 +110,7 @@ public static partial class ToonEncoder
         EncodeAsTabularArray(ref toonWriter, array);
         toonWriter.Flush();
     }
-        
+
     /// <summary>
     /// Encodes a JSON array of objects as a tabular array.
     /// </summary>
@@ -132,8 +132,8 @@ public static partial class ToonEncoder
         {
             bufferWriter.Dispose();
         }
-    }    
-    
+    }
+
     /// <summary>
     /// Encodes a JSON array of objects as a tabular array.
     /// </summary>

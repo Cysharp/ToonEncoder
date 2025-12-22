@@ -71,7 +71,7 @@ partial struct ToonWriter<TBufferWriter>
         {
             WriteRaw((byte)'\n');
         }
-        
+
         ref var state2 = ref currentState.PeekTRefTwoOrNullRef();
         if (!Unsafe.IsNullRef(ref state2) && state2.Scope == WriteScope.NonUniformArray && state.Index == 0)
         {
@@ -99,7 +99,7 @@ partial struct ToonWriter<TBufferWriter>
         {
             WriteRaw((byte)'\n');
         }
-        
+
         ref var state2 = ref currentState.PeekTRefTwoOrNullRef();
         if (!Unsafe.IsNullRef(ref state2) && state2.Scope == WriteScope.NonUniformArray && state.Index == 0)
         {
