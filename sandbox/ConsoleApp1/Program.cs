@@ -1,8 +1,12 @@
 ﻿using Cysharp.AI;
+using Cysharp.AI.Internal;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Data;
+using System.IO.Pipelines;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Xml.Linq;
 
 var arrayBufferWriter = new ArrayBufferWriter<byte>();
@@ -21,20 +25,40 @@ toonWriter.WriteEndNonUniformArray();
 
 toonWriter.Flush();
 
-var uu = new User(Id: 1, Name: "Alice", Role: "Admin", dt: DateTime.Now, dt2: DateTimeOffset.Now, ts: TimeSpan.FromHours(1), me: MyEnum.Fruit);
-if (uu.dt == null)
-{
-}
+// toonWriter.WritePropertyName("
 
 var str = Encoding.UTF8.GetString(arrayBufferWriter.WrittenSpan);
 Console.WriteLine(str);
+
+
+var array = new byte[] { 1, 2, 3 };
+
+toonWriter.WriteStartInlineArray(19);
+foreach (var item in array)
+{
+    toonWriter.WriteNumber(item);
+}
+
+toonWriter.WriteEndInlineArray();
 
 
 [GenerateToonTabularArrayConverter]
 public record User(int Id, string Name, string Role, DateTime dt, DateTimeOffset dt2, TimeSpan ts, MyEnum me);
 
 
+[GenerateToonSimpleObjectConverter]
+public class SimpleClass
+{
+    public int Id { get; set; }
+    public string? Name { get; set; }
+    public MyEnum Me { get; set; }
+    public int[]? MyProperty { get; set; }
+    // public User[]? MyUser { get; set; }
+}
+
+
 public enum MyEnum
 {
     Fruit, Orange, Apple
 }
+

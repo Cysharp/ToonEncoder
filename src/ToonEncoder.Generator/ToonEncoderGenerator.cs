@@ -1,5 +1,8 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using System.Text;
 
 namespace Cysharp.AI;
 
@@ -10,13 +13,13 @@ public class ToonEncoderGenerator : IIncrementalGenerator
     {
         context.RegisterPostInitializationOutput(EmitAttributes);
 
-        var targetTypes = context.SyntaxProvider.ForAttributeWithMetadataName("Cysharp.AI.GenerateToonTabularArrayConverter",
+        var tabularArray = context.SyntaxProvider.ForAttributeWithMetadataName("Cysharp.AI.GenerateToonTabularArrayConverter",
             (node, cancellationToken) => true,
             (context, cancellationToken) =>
             {
                 if (context.TargetSymbol is ITypeSymbol typeSymbol)
                 {
-                    return new TabularArrayInfo(typeSymbol);
+                    return new ToonObjectInfo(typeSymbol);
                 }
                 else
                 {
@@ -25,7 +28,24 @@ public class ToonEncoderGenerator : IIncrementalGenerator
             })
             .Where(x => x != null);
 
-        context.RegisterSourceOutput(targetTypes, EmitTabularArrayConverter!);
+        context.RegisterSourceOutput(tabularArray, EmitTabularArrayConverter!);
+
+        var simpleObject = context.SyntaxProvider.ForAttributeWithMetadataName("Cysharp.AI.GenerateToonSimpleObjectConverter",
+            (node, cancellationToken) => true,
+            (context, cancellationToken) =>
+            {
+                if (context.TargetSymbol is ITypeSymbol typeSymbol)
+                {
+                    return new ToonObjectInfo(typeSymbol);
+                }
+                else
+                {
+                    return null;
+                }
+            })
+            .Where(x => x != null);
+
+        context.RegisterSourceOutput(simpleObject, EmitSimpleObjectConverter!);
     }
 
     static void EmitAttributes(IncrementalGeneratorPostInitializationContext context)
@@ -43,22 +63,28 @@ namespace Cysharp.AI
     internal sealed class GenerateToonTabularArrayConverter : Attribute
     {
     }
+
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
+    internal sealed class GenerateToonSimpleObjectConverter : Attribute
+    {
+    }
 }
 """.ReplaceLineEndings());
     }
 
-    static void EmitTabularArrayConverter(SourceProductionContext sourceProductionContext, TabularArrayInfo tabularArrayInfo)
+    static void EmitTabularArrayConverter(SourceProductionContext sourceProductionContext, ToonObjectInfo objectInfo)
     {
-        if (!tabularArrayInfo.Verify(sourceProductionContext))
+        if (!objectInfo.VerifyTabularArray(sourceProductionContext))
         {
             return;
         }
 
-        var arrayType = $"{tabularArrayInfo.ElementFullName}[]";
-        var utf8FieldNames = string.Join(", ", tabularArrayInfo.PropertyNames.Select(n => $"\"{n}\"u8.ToArray()"));
-        var encodeRow = string.Join("\n", tabularArrayInfo.PropertyNames.Select((name, index) =>
+        var converterName = $"{objectInfo.ElementFullName.Replace("global::", "").Replace(".", "_")}TabularArrayConverter";
+        var arrayType = $"{objectInfo.ElementFullName}[]?";
+        var utf8FieldNames = string.Join(", ", objectInfo.PropertyNames.Select(n => $"\"{n}\"u8.ToArray()"));
+        var encodeRow = string.Join("\n", objectInfo.PropertyNames.Select((name, index) =>
         {
-            var kind = tabularArrayInfo.PropertyKinds[index];
+            var kind = objectInfo.PropertyKinds![index];
             var str = kind switch
             {
                 ToonPrimitiveKind.Boolean => $"toonWriter.WriteBoolean(item.{name});",
@@ -90,7 +116,7 @@ using System.Threading.Tasks;
 
 namespace Cysharp.AI.Converters
 {
-    public class {{tabularArrayInfo.ConverterName}} : JsonConverter<{{arrayType}}>
+    public class {{converterName}} : JsonConverter<{{arrayType}}>
     {
         static readonly ReadOnlyMemory<byte>[] utf8FieldNames = [{{utf8FieldNames}}];
 
@@ -140,6 +166,12 @@ namespace Cysharp.AI.Converters
         public static void EncodeAsTabularArray<TBufferWriter>(ref ToonWriter<TBufferWriter> toonWriter, {{arrayType}} value)
             where TBufferWriter : IBufferWriter<byte>
         {
+            if (value == null)
+            {
+                toonWriter.WriteNull();
+                return;
+            }
+
             toonWriter.WriteStartTabularArray(value.Length, utf8FieldNames, escaped: true);
 
             foreach (var item in value)
@@ -165,7 +197,7 @@ namespace Cysharp.AI.Converters
             }
         }
 
-        public override {{arrayType}}? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override {{arrayType}} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             throw new NotSupportedException("Toon serialization only supports Write.");
         }
@@ -173,7 +205,189 @@ namespace Cysharp.AI.Converters
 }
 """;
 
-        sourceProductionContext.AddSource($"{tabularArrayInfo.ConverterName}.g.cs", source.ReplaceLineEndings());
+        sourceProductionContext.AddSource($"{converterName}.g.cs", source.ReplaceLineEndings());
+    }
+
+    static void EmitSimpleObjectConverter(SourceProductionContext sourceProductionContext, ToonObjectInfo objectInfo)
+    {
+        if (!objectInfo.VerifySimpleObject(sourceProductionContext))
+        {
+            return;
+        }
+
+        var converterName = $"{objectInfo.ElementFullName.Replace("global::", "").Replace(".", "_")}SimpleObjectConverter";
+        var objectType = $"{objectInfo.ElementFullName}"; // TODO: nullable check
+
+        // TODO: utf8Fields
+        // var utf8FieldNames = string.Join(", ", objectInfo.PropertyNames.Select(n => $"\"{n}\"u8.ToArray()"));
+
+        const string defaultIndent = "            ";
+        var encodeRow = new StringBuilder();
+        for (int i = 0; i < objectInfo.PropertyNames!.Length; i++)
+        {
+            var name = objectInfo.PropertyNames[i];
+            var kind = objectInfo.PropertyKinds![i];
+            var arrayInfo = objectInfo.NestedArrayInfos![i];
+
+            encodeRow.AppendLine(defaultIndent + $"toonWriter.WritePropertyName(\"{name}\");");
+            EmitValueLine("value", name, kind, arrayInfo, defaultIndent);
+
+            void EmitValueLine(string instanceName, string propertyName, ToonPrimitiveKind kind, ToonObjectInfo? arrayInfo, string indent)
+            {
+                var name = propertyName == "" ? instanceName : $"{instanceName}.{propertyName}";
+                switch (kind)
+                {
+                    case ToonPrimitiveKind.Boolean:
+                        encodeRow.AppendLine(indent + $"toonWriter.WriteBoolean({name});");
+                        break;
+                    case ToonPrimitiveKind.Number:
+                        encodeRow.AppendLine(indent + $"toonWriter.WriteNumber({name});");
+                        break;
+                    case ToonPrimitiveKind.String:
+                        encodeRow.AppendLine(indent + $"toonWriter.WriteString({name});");
+                        break;
+                    case ToonPrimitiveKind.NullableNumber:
+                        encodeRow.AppendLine(indent + $"if ({name} == null) {{ toonWriter.WriteNull(); }} else {{ toonWriter.WriteNumber({name}); }}");
+                        break;
+                    case ToonPrimitiveKind.NullableBoolean:
+                        encodeRow.AppendLine(indent + $"if ({name} == null) {{ toonWriter.WriteNull(); }} else {{ toonWriter.WriteBoolean({name}); }}");
+                        break;
+                    case ToonPrimitiveKind.NullableString:
+                        encodeRow.AppendLine(indent + $"if ({name} == null) {{ toonWriter.WriteNull(); }} else {{ toonWriter.WriteString({name}); }}");
+                        break;
+                    case ToonPrimitiveKind.Array:
+                        if (arrayInfo!.IsPrimitiveOrArray) // verified, it is not array.
+                        {
+                            encodeRow.AppendLine(indent + $"if ({name} == null)");
+                            encodeRow.AppendLine(indent + "{");
+                            encodeRow.AppendLine(indent + "    toonWriter.WriteNull();");
+                            encodeRow.AppendLine(indent + "}");
+                            encodeRow.AppendLine(indent + "else");
+                            encodeRow.AppendLine(indent + "{");
+                            encodeRow.AppendLine(indent + $"    toonWriter.WriteStartInlineArray({name}.Length)");
+                            encodeRow.AppendLine(indent + $"    foreach (var item in {name})");
+                            encodeRow.AppendLine(indent + "    {");
+                            EmitValueLine("item", "", arrayInfo.PrimitiveKind, null, indent + "        ");
+                            encodeRow.AppendLine(indent + "    }");
+                            encodeRow.AppendLine(indent + "    toonWriter.WriteEndInlineArray()");                            
+                            encodeRow.AppendLine(indent + "}");
+                        }
+                        else
+                        {
+                            // TODO: TabularArray
+                        }
+                        break;
+                    case ToonPrimitiveKind.Object: // already verified, not come here.
+                    default:
+                        throw new NotSupportedException($"Unsupported property type for Toon serialization: {kind}");
+                }
+            }
+        }
+
+        var source = $$"""
+// <auto-generated/>
+#pragma warning disable
+#nullable enable
+
+using Cysharp.AI.Internal;
+using System;
+using System.Buffers;
+using System.IO;
+using System.IO.Pipelines;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Cysharp.AI.Converters
+{
+    public class {{converterName}} : JsonConverter<{{objectType}}>
+    {
+        // fieldNames for tabular-array
+        //static readonly ReadOnlyMemory<byte>[] utf8FieldNames = ["Id"u8.ToArray(), "Name"u8.ToArray(), "Role"u8.ToArray(), "dt"u8.ToArray(), "dt2"u8.ToArray(), "ts"u8.ToArray(), "me"u8.ToArray()];
+
+        public static string Encode({{objectType}} value)
+        {
+            var bufferWriter = new Cysharp.AI.Internal.ValueArrayPoolBufferWriter<byte>();
+            try
+            {
+                Encode(ref bufferWriter, value);
+                return Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
+            }
+            finally
+            {
+                bufferWriter.Dispose();
+            }
+        }
+
+        public static byte[] EncodeToUtf8Bytes({{objectType}} value)
+        {
+            var bufferWriter = new ValueArrayPoolBufferWriter<byte>();
+            try
+            {
+                Encode(ref bufferWriter, value);
+                return bufferWriter.WrittenSpan.ToArray();
+            }
+            finally
+            {
+                bufferWriter.Dispose();
+            }
+        }
+
+        public static async ValueTask EncodeAsync(Stream utf8Stream, {{objectType}} value, CancellationToken cancellationToken = default)
+        {
+            var writer = PipeWriter.Create(utf8Stream);
+            Encode(ref writer, value);
+            await writer.FlushAsync(cancellationToken);
+        }
+
+        public static void Encode<TBufferWriter>(ref TBufferWriter bufferWriter, {{objectType}} value)
+            where TBufferWriter : IBufferWriter<byte>
+        {
+            var toonWriter = ToonWriter.Create(ref bufferWriter);
+            Encode(ref toonWriter, value);
+            toonWriter.Flush();
+        }
+
+        public static void Encode<TBufferWriter>(ref ToonWriter<TBufferWriter> toonWriter, {{objectType}} value)
+            where TBufferWriter : IBufferWriter<byte>
+        {
+            if (value == null)
+            {
+                toonWriter.WriteNull();
+                return;
+            }
+
+            toonWriter.WriteStartObject();
+
+{{encodeRow}}
+            toonWriter.WriteEndObject();
+        }
+
+        public override void Write(Utf8JsonWriter utf8JsonWriter, {{objectType}} value, JsonSerializerOptions options)
+        {
+            var bufferWriter = new Cysharp.AI.Internal.ValueArrayPoolBufferWriter<byte>();
+            try
+            {
+                Encode(ref bufferWriter, value);
+                utf8JsonWriter.WriteStringValue(bufferWriter.WrittenSpan);
+            }
+            finally
+            {
+                bufferWriter.Dispose();
+            }
+        }
+
+        public override {{objectType}} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            throw new NotSupportedException("Toon serialization only supports Write.");
+        }
+    }
+}
+""";
+
+        sourceProductionContext.AddSource($"{converterName}.g.cs", source.ReplaceLineEndings());
     }
 }
 
@@ -186,18 +400,26 @@ public record struct LocationSlim(string FilePath, TextSpan TextSpan, LinePositi
     }
 }
 
-public record TabularArrayInfo
+public record ToonObjectInfo
 {
     public string ElementFullName { get; }
-    public string ConverterName { get; }
     public LocationSlim Location { get; }
-    public string[] PropertyNames { get; }
-    public ToonPrimitiveKind[] PropertyKinds { get; }
 
-    public TabularArrayInfo(ITypeSymbol symbol)
+    public ToonPrimitiveKind PrimitiveKind { get; }
+
+    [MemberNotNullWhen(false, nameof(PropertyNames), nameof(PropertyKinds), nameof(NestedArrayInfos))]
+    public bool IsPrimitiveOrArray => PrimitiveKind != ToonPrimitiveKind.Object;
+
+    // If not primitive
+    public string[]? PropertyNames { get; }
+    public ToonPrimitiveKind[]? PropertyKinds { get; }
+
+    // If array
+    public ToonObjectInfo?[]? NestedArrayInfos { get; }
+
+    public ToonObjectInfo(ITypeSymbol symbol)
     {
         ElementFullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        ConverterName = $"{ElementFullName.Replace("global::", "").Replace(".", "_")}TabularArrayConverter";
 
         var location = symbol.Locations.FirstOrDefault();
         if (location != null)
@@ -209,105 +431,133 @@ public record TabularArrayInfo
                 lineSpan.Span);
         }
 
+        var (kind, _) = GetToonPrimitive(symbol);
+        if (kind != ToonPrimitiveKind.Object)
+        {
+            PrimitiveKind = kind;
+            return;
+        }
+        else
+        {
+            PrimitiveKind = ToonPrimitiveKind.Object;
+        }
+
         var nameAndKinds = symbol.GetMembers()
             .Where(x => x.DeclaredAccessibility == Accessibility.Public)
             .OfType<IPropertySymbol>()
             .Select(p =>
             {
-                return (p.Name, Kind: GetKind(p.Type));
-
-                static ToonPrimitiveKind GetKind(ITypeSymbol t)
-                {
-                    if (t.NullableAnnotation == NullableAnnotation.Annotated && t is INamedTypeSymbol nts && nts.IsGenericType && nts.Name == "Nullable" && nts.TypeArguments.Length == 1)
-                    {
-                        var underlyingType = nts.TypeArguments[0];
-
-                        if (underlyingType.TypeKind == TypeKind.Enum || IsGuid(underlyingType) || IsTimeSpan(underlyingType) || IsDateTimeOffset(underlyingType))
-                        {
-                            return ToonPrimitiveKind.NullableString;
-                        }
-
-                        return underlyingType.SpecialType switch
-                        {
-                            SpecialType.System_Boolean => ToonPrimitiveKind.NullableBoolean,
-                            SpecialType.System_DateTime => ToonPrimitiveKind.NullableString,
-                            SpecialType.System_Byte or
-                            SpecialType.System_SByte or
-                            SpecialType.System_Int16 or
-                            SpecialType.System_UInt16 or
-                            SpecialType.System_Int32 or
-                            SpecialType.System_UInt32 or
-                            SpecialType.System_Int64 or
-                            SpecialType.System_UInt64 or
-                            SpecialType.System_Single or
-                            SpecialType.System_Double or
-                            SpecialType.System_Decimal => ToonPrimitiveKind.NullableNumber,
-                            _ => ToonPrimitiveKind.Unsupported,
-                        };
-                    }
-                    else
-                    {
-                        if (t.TypeKind == TypeKind.Enum || IsGuid(t) || IsTimeSpan(t) || IsDateTimeOffset(t))
-                        {
-                            return ToonPrimitiveKind.String;
-                        }
-
-                        return t.SpecialType switch
-                        {
-                            SpecialType.System_Boolean => ToonPrimitiveKind.Boolean,
-                            SpecialType.System_DateTime => ToonPrimitiveKind.String,
-                            SpecialType.System_String => ToonPrimitiveKind.String,
-                            SpecialType.System_Byte or
-                            SpecialType.System_SByte or
-                            SpecialType.System_Int16 or
-                            SpecialType.System_UInt16 or
-                            SpecialType.System_Int32 or
-                            SpecialType.System_UInt32 or
-                            SpecialType.System_Int64 or
-                            SpecialType.System_UInt64 or
-                            SpecialType.System_Single or
-                            SpecialType.System_Double or
-                            SpecialType.System_Decimal => ToonPrimitiveKind.Number,
-                            _ => ToonPrimitiveKind.Unsupported,
-                        };
-                    }
-                }
-
-                static bool IsGuid(ITypeSymbol type)
-                {
-                    return type is INamedTypeSymbol { Name: "Guid", ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true } };
-                }
-
-                static bool IsTimeSpan(ITypeSymbol type)
-                {
-                    return type is INamedTypeSymbol { Name: "TimeSpan", ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true } };
-                }
-
-                static bool IsDateTimeOffset(ITypeSymbol type)
-                {
-                    return type is INamedTypeSymbol { Name: "DateTimeOffset", ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true } };
-                }
+                var (Kind, NestedInfo) = GetToonPrimitive(p.Type);
+                return (p.Name, Kind, NestedInfo);
             })
             .ToArray();
 
         PropertyNames = nameAndKinds.Select(x => x.Name).ToArray();
         PropertyKinds = nameAndKinds.Select(x => x.Kind).ToArray();
+        NestedArrayInfos = nameAndKinds.Select(x => x.NestedInfo!).ToArray();
+
+        static (ToonPrimitiveKind, ToonObjectInfo?) GetToonPrimitive(ITypeSymbol t)
+        {
+            if (t.NullableAnnotation == NullableAnnotation.Annotated && t is INamedTypeSymbol nts && nts.IsGenericType && nts.Name == "Nullable" && nts.TypeArguments.Length == 1)
+            {
+                var underlyingType = nts.TypeArguments[0];
+
+                if (underlyingType.TypeKind == TypeKind.Enum || IsGuid(underlyingType) || IsTimeSpan(underlyingType) || IsDateTimeOffset(underlyingType))
+                {
+                    return (ToonPrimitiveKind.NullableString, null);
+                }
+
+                return underlyingType.SpecialType switch
+                {
+                    SpecialType.System_Boolean => (ToonPrimitiveKind.NullableBoolean, null),
+                    SpecialType.System_DateTime => (ToonPrimitiveKind.NullableString, null),
+                    SpecialType.System_Byte or
+                    SpecialType.System_SByte or
+                    SpecialType.System_Int16 or
+                    SpecialType.System_UInt16 or
+                    SpecialType.System_Int32 or
+                    SpecialType.System_UInt32 or
+                    SpecialType.System_Int64 or
+                    SpecialType.System_UInt64 or
+                    SpecialType.System_Single or
+                    SpecialType.System_Double or
+                    SpecialType.System_Decimal => (ToonPrimitiveKind.NullableNumber, null),
+                    _ => (ToonPrimitiveKind.Object, null),
+                };
+            }
+            else
+            {
+                if (t.TypeKind == TypeKind.Array && t is IArrayTypeSymbol array)
+                {
+                    var elementType = new ToonObjectInfo(array.ElementType);
+                    return (ToonPrimitiveKind.Array, elementType);
+                }
+
+                if (t.TypeKind == TypeKind.Enum || IsGuid(t) || IsTimeSpan(t) || IsDateTimeOffset(t))
+                {
+                    return (ToonPrimitiveKind.String, null);
+                }
+
+                return t.SpecialType switch
+                {
+                    SpecialType.System_Boolean => (ToonPrimitiveKind.Boolean, null),
+                    SpecialType.System_DateTime => (ToonPrimitiveKind.String, null),
+                    SpecialType.System_String => (ToonPrimitiveKind.String, null),
+                    SpecialType.System_Byte or
+                    SpecialType.System_SByte or
+                    SpecialType.System_Int16 or
+                    SpecialType.System_UInt16 or
+                    SpecialType.System_Int32 or
+                    SpecialType.System_UInt32 or
+                    SpecialType.System_Int64 or
+                    SpecialType.System_UInt64 or
+                    SpecialType.System_Single or
+                    SpecialType.System_Double or
+                    SpecialType.System_Decimal => (ToonPrimitiveKind.Number, null),
+                    _ => (ToonPrimitiveKind.Object, null),
+                };
+            }
+
+            static bool IsGuid(ITypeSymbol type)
+            {
+                return type is INamedTypeSymbol { Name: "Guid", ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true } };
+            }
+
+            static bool IsTimeSpan(ITypeSymbol type)
+            {
+                return type is INamedTypeSymbol { Name: "TimeSpan", ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true } };
+            }
+
+            static bool IsDateTimeOffset(ITypeSymbol type)
+            {
+                return type is INamedTypeSymbol { Name: "DateTimeOffset", ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true } };
+            }
+        }
     }
 
-    public bool Verify(SourceProductionContext sourceProductionContext)
+    public bool VerifyTabularArray(SourceProductionContext sourceProductionContext)
     {
         var hasUnsupported = false;
         List<string>? unsupportedPropertyNames = null;
-        for (int i = 0; i < PropertyKinds.Length; i++)
+
+        if (IsPrimitiveOrArray)
         {
-            if (PropertyKinds[i] == ToonPrimitiveKind.Unsupported)
+            hasUnsupported = true;
+        }
+        else
+        {
+            for (int i = 0; i < PropertyKinds.Length; i++)
             {
-                if (unsupportedPropertyNames == null)
+                var kind = PropertyKinds[i];
+                if (kind == ToonPrimitiveKind.Object || kind == ToonPrimitiveKind.Array) // only allow primitive
                 {
-                    unsupportedPropertyNames = new List<string>();
+                    if (unsupportedPropertyNames == null)
+                    {
+                        unsupportedPropertyNames = new List<string>();
+                    }
+                    unsupportedPropertyNames.Add(PropertyNames[i]);
+                    hasUnsupported = true;
                 }
-                unsupportedPropertyNames.Add(PropertyNames[i]);
-                hasUnsupported = true;
             }
         }
 
@@ -316,7 +566,77 @@ public record TabularArrayInfo
             sourceProductionContext.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor(
                 "TEG001",
                 "Unsupported Property Type for Toon Tabular Array Converter",
-                $"The property type is not supported for Toon Tabular Array serialization in {ElementFullName.Replace("global::", "")}.{string.Join(", ", unsupportedPropertyNames)}.",
+                $"The property type is not supported for Toon Tabular Array serialization in {ElementFullName.Replace("global::", "")}.{string.Join(", ", unsupportedPropertyNames ?? [])}.",
+                "ToonEncoderGenerator",
+                DiagnosticSeverity.Error,
+                isEnabledByDefault: true), Location.CreateLocation()));
+
+            return false;
+        }
+
+        return true;
+    }
+
+    public bool VerifySimpleObject(SourceProductionContext sourceProductionContext)
+    {
+        var hasUnsupported = false;
+        List<string>? unsupportedPropertyNames = null;
+
+        if (IsPrimitiveOrArray)
+        {
+            hasUnsupported = true;
+        }
+        else
+        {
+            for (int i = 0; i < PropertyKinds.Length; i++)
+            {
+                void AddUnsupported()
+                {
+                    if (unsupportedPropertyNames == null)
+                    {
+                        unsupportedPropertyNames = new List<string>();
+                    }
+                    unsupportedPropertyNames.Add(PropertyNames![i]);
+                    hasUnsupported = true;
+                }
+
+                var kind = PropertyKinds[i];
+                if (kind == ToonPrimitiveKind.Object)
+                {
+                    AddUnsupported();
+                }
+                else if (kind == ToonPrimitiveKind.Array)
+                {
+                    // when array, need to verify inner as primitive(InlineArray) or primitive object(TabularArray).
+                    var arrayInfo = NestedArrayInfos[i]!;
+
+                    if (arrayInfo.PrimitiveKind == ToonPrimitiveKind.Array) // array of array is NG.
+                    {
+                        AddUnsupported();
+                    }
+                    else if (arrayInfo.PrimitiveKind == ToonPrimitiveKind.Object)
+                    {
+                        // check is TabularArray
+                        for (int j = 0; j < arrayInfo.PropertyKinds!.Length; j++)
+                        {
+                            var pk = arrayInfo.PropertyKinds[j];
+                            if (pk == ToonPrimitiveKind.Object || pk == ToonPrimitiveKind.Array)
+                            {
+                                AddUnsupported();
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (hasUnsupported)
+        {
+            sourceProductionContext.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor(
+                "TEG002",
+                "Unsupported Property Type for Toon Simple Object Converter",
+                $"The property type is not supported for Toon Simple Object serialization in {ElementFullName.Replace("global::", "")}.{string.Join(", ", unsupportedPropertyNames)}. Property must be toon-primitive or primitive-array or tabular-array convertible array.",
                 "ToonEncoderGenerator",
                 DiagnosticSeverity.Error,
                 isEnabledByDefault: true), Location.CreateLocation()));
@@ -337,5 +657,7 @@ public enum ToonPrimitiveKind
     NullableBoolean,
     NullableString,
 
-    Unsupported
+    Array,
+
+    Object // Object or Unsupported Primitive
 }
