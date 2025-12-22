@@ -216,10 +216,23 @@ namespace Cysharp.AI.Converters
         }
 
         var converterName = $"{objectInfo.ElementFullName.Replace("global::", "").Replace(".", "_")}SimpleObjectConverter";
-        var objectType = $"{objectInfo.ElementFullName}"; // TODO: nullable check
+        var objectType = $"{objectInfo.ElementFullName}" + (objectInfo.IsReferenceType ? "?" : "");
 
-        // TODO: utf8Fields
-        // var utf8FieldNames = string.Join(", ", objectInfo.PropertyNames.Select(n => $"\"{n}\"u8.ToArray()"));
+        List<(string PropName, string Utf8FieldNames)> nestedUtf8FieldNames = new();
+        for (int i = 0; i < objectInfo.PropertyKinds!.Length; i++)
+        {
+            if (objectInfo.PropertyKinds[i] == ToonPrimitiveKind.Array)
+            {
+                var arrayInfo = objectInfo.NestedArrayInfos![i]!;
+                if (arrayInfo.PrimitiveKind == ToonPrimitiveKind.Object)
+                {
+                    var utf8FieldNames = string.Join(", ", arrayInfo.PropertyNames.Select(n => $"\"{n}\"u8.ToArray()"));
+                    nestedUtf8FieldNames.Add((objectInfo.PropertyNames![i], utf8FieldNames));
+                }
+            }
+        }
+
+        var utf8FieldNamesDeclaration = string.Join("\n", nestedUtf8FieldNames.Select(x => $"        static readonly ReadOnlyMemory<byte>[] {x.PropName}_utf8FieldNames = [{x.Utf8FieldNames}];"));
 
         const string defaultIndent = "            ";
         var encodeRow = new StringBuilder();
@@ -258,23 +271,46 @@ namespace Cysharp.AI.Converters
                     case ToonPrimitiveKind.Array:
                         if (arrayInfo!.IsPrimitiveOrArray) // verified, it is not array.
                         {
+                            // InlineArray
                             encodeRow.AppendLine(indent + $"if ({name} == null)");
                             encodeRow.AppendLine(indent + "{");
                             encodeRow.AppendLine(indent + "    toonWriter.WriteNull();");
                             encodeRow.AppendLine(indent + "}");
                             encodeRow.AppendLine(indent + "else");
                             encodeRow.AppendLine(indent + "{");
-                            encodeRow.AppendLine(indent + $"    toonWriter.WriteStartInlineArray({name}.Length)");
+                            encodeRow.AppendLine(indent + $"    toonWriter.WriteStartInlineArray({name}.Length);");
                             encodeRow.AppendLine(indent + $"    foreach (var item in {name})");
                             encodeRow.AppendLine(indent + "    {");
                             EmitValueLine("item", "", arrayInfo.PrimitiveKind, null, indent + "        ");
                             encodeRow.AppendLine(indent + "    }");
-                            encodeRow.AppendLine(indent + "    toonWriter.WriteEndInlineArray()");                            
+                            encodeRow.AppendLine(indent + "    toonWriter.WriteEndInlineArray();");
                             encodeRow.AppendLine(indent + "}");
                         }
                         else
                         {
-                            // TODO: TabularArray
+                            // TabularArray
+                            encodeRow.AppendLine(indent + $"if ({name} == null)");
+                            encodeRow.AppendLine(indent + "{");
+                            encodeRow.AppendLine(indent + "    toonWriter.WriteNull();");
+                            encodeRow.AppendLine(indent + "}");
+                            encodeRow.AppendLine(indent + "else");
+                            encodeRow.AppendLine(indent + "{");
+                            encodeRow.AppendLine(indent + $"    toonWriter.WriteStartTabularArray({name}.Length, {propertyName}_utf8FieldNames, escaped: true);");
+                            encodeRow.AppendLine(indent + $"    foreach (var item in {name})");
+                            encodeRow.AppendLine(indent + "    {");
+                            encodeRow.AppendLine(indent + "        toonWriter.WriteNextRowOfTabularArray();");
+
+                            for (var j = 0; j < arrayInfo.PropertyNames!.Length; j++)
+                            {
+                                var propName = arrayInfo.PropertyNames[j];
+                                var propKind = arrayInfo.PropertyKinds![j];
+                                var propArrayInfo = arrayInfo.NestedArrayInfos![j];
+                                EmitValueLine("item", propName, propKind, propArrayInfo, indent + "        ");
+                            }
+
+                            encodeRow.AppendLine(indent + "    }");
+                            encodeRow.AppendLine(indent + "    toonWriter.WriteEndTabularArray();");
+                            encodeRow.AppendLine(indent + "}");
                         }
                         break;
                     case ToonPrimitiveKind.Object: // already verified, not come here.
@@ -282,6 +318,18 @@ namespace Cysharp.AI.Converters
                         throw new NotSupportedException($"Unsupported property type for Toon serialization: {kind}");
                 }
             }
+        }
+
+        var emitWriteNull = """
+            if (value == null)
+            {
+                toonWriter.WriteNull();
+                return;
+            }
+""";
+        if (!objectInfo.IsReferenceType)
+        {
+            emitWriteNull = "";
         }
 
         var source = $$"""
@@ -304,8 +352,7 @@ namespace Cysharp.AI.Converters
 {
     public class {{converterName}} : JsonConverter<{{objectType}}>
     {
-        // fieldNames for tabular-array
-        //static readonly ReadOnlyMemory<byte>[] utf8FieldNames = ["Id"u8.ToArray(), "Name"u8.ToArray(), "Role"u8.ToArray(), "dt"u8.ToArray(), "dt2"u8.ToArray(), "ts"u8.ToArray(), "me"u8.ToArray()];
+{{utf8FieldNamesDeclaration}}
 
         public static string Encode({{objectType}} value)
         {
@@ -353,11 +400,7 @@ namespace Cysharp.AI.Converters
         public static void Encode<TBufferWriter>(ref ToonWriter<TBufferWriter> toonWriter, {{objectType}} value)
             where TBufferWriter : IBufferWriter<byte>
         {
-            if (value == null)
-            {
-                toonWriter.WriteNull();
-                return;
-            }
+{{emitWriteNull}}
 
             toonWriter.WriteStartObject();
 
@@ -403,8 +446,8 @@ public record struct LocationSlim(string FilePath, TextSpan TextSpan, LinePositi
 public record ToonObjectInfo
 {
     public string ElementFullName { get; }
+    public bool IsReferenceType { get; }
     public LocationSlim Location { get; }
-
     public ToonPrimitiveKind PrimitiveKind { get; }
 
     [MemberNotNullWhen(false, nameof(PropertyNames), nameof(PropertyKinds), nameof(NestedArrayInfos))]
@@ -420,6 +463,7 @@ public record ToonObjectInfo
     public ToonObjectInfo(ITypeSymbol symbol)
     {
         ElementFullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        IsReferenceType = symbol.IsReferenceType;
 
         var location = symbol.Locations.FirstOrDefault();
         if (location != null)

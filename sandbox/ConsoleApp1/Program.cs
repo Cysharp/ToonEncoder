@@ -9,37 +9,27 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml.Linq;
 
-var arrayBufferWriter = new ArrayBufferWriter<byte>();
-var toonWriter = ToonWriter.Create(ref arrayBufferWriter);
 
-// write as NonUniform Array
-toonWriter.WriteStartNonUniformArray(2);
+var str = Cysharp.AI.Converters.SimpleClassSimpleObjectConverter.Encode(new SimpleClass
+{
+    Id = 1,
+    Name = "Test",
+    NotMyUser = new[]
+    {
+        new User(1, "User1", "Admin", DateTime.Now, DateTimeOffset.Now, TimeSpan.FromHours(1), MyEnum.Fruit),
+        new User(2, "User2", "User", DateTime.Now, DateTimeOffset.Now, TimeSpan.FromHours(2), MyEnum.Orange),
+    },
+    Me = MyEnum.Apple,
+    MyProperty = new[] { 1, 2, 3, 4, 5 },
+    MyUser = new[]
+    {
+        new User(1, "User1", "Admin", DateTime.Now, DateTimeOffset.Now, TimeSpan.FromHours(1), MyEnum.Fruit),
+        new User(2, "User2", "User", DateTime.Now, DateTimeOffset.Now, TimeSpan.FromHours(2), MyEnum.Orange),
+    }
+});
 
-toonWriter.WriteNextRowOfNonUniformArray();
-toonWriter.WriteNumber(1);
-
-toonWriter.WriteNextRowOfNonUniformArray();
-toonWriter.WriteString(MyEnum.Orange);
-
-toonWriter.WriteEndNonUniformArray();
-
-toonWriter.Flush();
-
-// toonWriter.WritePropertyName("
-
-var str = Encoding.UTF8.GetString(arrayBufferWriter.WrittenSpan);
 Console.WriteLine(str);
 
-
-var array = new byte[] { 1, 2, 3 };
-
-toonWriter.WriteStartInlineArray(19);
-foreach (var item in array)
-{
-    toonWriter.WriteNumber(item);
-}
-
-toonWriter.WriteEndInlineArray();
 
 
 [GenerateToonTabularArrayConverter]
@@ -51,9 +41,11 @@ public class SimpleClass
 {
     public int Id { get; set; }
     public string? Name { get; set; }
+    public User[]? NotMyUser { get; set; }
     public MyEnum Me { get; set; }
     public int[]? MyProperty { get; set; }
-    // public User[]? MyUser { get; set; }
+    public User[]? MyUser { get; set; }
+    // public User2 MyProperty1000 { get; set; }
 }
 
 
@@ -62,3 +54,7 @@ public enum MyEnum
     Fruit, Orange, Apple
 }
 
+public class User2
+{
+    public List<int>? MyProperty2 { get; set; }
+}
