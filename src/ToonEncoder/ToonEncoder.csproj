@@ -5,10 +5,21 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>Cysharp.AI</RootNamespace>
+
+    <!-- NuGet -->
+    <IsPackable>true</IsPackable>
+    <PackageTags>llm,serialization,json</PackageTags>
+    <Description>High performance Toon encoder for .NET.</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.IO.Hashing" Version="10.0.1" />
+  </ItemGroup>
+
+  <!-- Bundle SourceGenerator -->
+  <ItemGroup>
+    <ProjectReference Include="..\ToonEncoder.Generator\ToonEncoder.Generator.csproj" ReferenceOutputAssembly="false" />
+    <None Include="..\ToonEncoder.Generator\bin\$(Configuration)\netstandard2.0\ToonEncoder.Generator.dll" PackagePath="analyzers\dotnet\roslyn4.3\cs" Pack="true" Visible="false" />
   </ItemGroup>
 
 </Project>

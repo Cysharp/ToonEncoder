@@ -1,4 +1,14 @@
 <Solution>
+  <Folder Name="/items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="Directory.Build.props" />
+    <File Path="exclusion.dic" />
+    <File Path="global.json" />
+    <File Path="LICENSE" />
+    <File Path="opensource.snk" />
+    <File Path="README.md" />
+  </Folder>
   <Folder Name="/sandbox/">
     <Project Path="sandbox/BenchmarkSuite/BenchmarkSuite.csproj" Id="a601f4ad-3dfd-43cc-b51b-845076f73eef" />
     <Project Path="sandbox/ConsoleApp1/ConsoleApp1.csproj" />

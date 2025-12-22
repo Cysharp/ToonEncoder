@@ -1,9 +1,11 @@
 ﻿using Cysharp.AI.Internal;
+using System;
 using System.Buffers;
 using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Unicode;
 
 namespace Cysharp.AI;
@@ -200,6 +202,33 @@ public ref partial struct ToonWriter<TBufferWriter>
         Utf8Formatter.TryFormat(value, buffer, out var bytesWritten);
         buffer = buffer.Slice(bytesWritten);
         written += bytesWritten;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void WriteString<TEnum>(TEnum value)
+        where TEnum : struct, Enum
+    {
+        TryWriteKeyValueSeparator();
+        WriteDelimiter();
+
+        // currently Enum doesn't support IUtf8SpanFormattable: https://github.com/dotnet/runtime/issues/81500
+        Span<char> dest = stackalloc char[256];
+        int charsWritten = 0;
+        while (!Enum.TryFormat(value, dest, out charsWritten))
+        {
+            if (dest.Length < 512)
+            {
+#pragma warning disable CA2014 // Do not use stackalloc in loops
+                dest = stackalloc char[dest.Length * 2];
+#pragma warning restore CA2014
+            }
+            else
+            {
+                dest = new char[dest.Length * 2]; // too large
+            }
+        }
+
+        WriteUtf16Core(dest.Slice(0, charsWritten));
     }
 
     // TOON's escape character is similar as Json's one so JsonElement has already escaped string, don't need to escape.
@@ -430,7 +459,7 @@ public ref partial struct ToonWriter<TBufferWriter>
         }
     }
 
-    void WriteUtf16Core(ReadOnlySpan<char> value)
+    void WriteUtf16Core(scoped ReadOnlySpan<char> value)
     {
         while (value.Length > 0)
         {
