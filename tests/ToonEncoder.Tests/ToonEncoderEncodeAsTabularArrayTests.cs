@@ -55,6 +55,7 @@ public class ToonEncoderEncodeAsTabularArrayTests
         var toonWriter = ToonWriter.Create(ref bufferWriter);
 
         Cysharp.AI.ToonEncoder.EncodeAsTabularArray(ref toonWriter, element);
+        toonWriter.Flush();
 
         var result = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
         await Assert.That(result).IsEqualTo(ExpectedTabular);

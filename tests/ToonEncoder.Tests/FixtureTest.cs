@@ -1,10 +1,7 @@
 ﻿using Cysharp.AI;
 using System.Buffers;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
-using System.Xml.Linq;
-using TUnit.Core;
 
 namespace ToonEncoder.Tests;
 
@@ -12,7 +9,7 @@ namespace ToonEncoder.Tests;
 
 public class FixtureTest
 {
-    public record EncodeTestData(TestCase Fixture)
+    public record struct EncodeTestData(TestCase Fixture)
     {
         public override string ToString()
         {
@@ -20,7 +17,7 @@ public class FixtureTest
         }
     }
 
-    public async Task<EncodeTestData[]> LoadTestCases(string filePath)
+    public static async Task<EncodeTestData[]> LoadTestCases(string filePath)
     {
         var fullPath = Path.Combine(Directory.GetCurrentDirectory(), filePath);
         var json = await File.ReadAllTextAsync(fullPath);
@@ -111,6 +108,7 @@ public class FixtureTest
         var toonWriter = ToonWriter.Create(ref bufferWriter, delimiter);
 
         Cysharp.AI.ToonEncoder.Encode(ref toonWriter, testData.Fixture.Input);
+        toonWriter.Flush();
 
         var toon = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
         await Assert.That(toon).IsEqualTo(testData.Fixture.Expected);

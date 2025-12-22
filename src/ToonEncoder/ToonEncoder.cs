@@ -39,13 +39,13 @@ public static partial class ToonEncoder
     {
         var toonWriter = ToonWriter.Create(ref bufferWriter);
         Encode(ref toonWriter, element);
+        toonWriter.Flush();
     }
 
     public static void Encode<TBufferWriter>(ref ToonWriter<TBufferWriter> toonWriter, JsonElement element)
         where TBufferWriter : IBufferWriter<byte>
     {
         WriteElement(ref toonWriter, element);
-        toonWriter.Flush();
     }
 
     public static byte[] EncodeToUtf8Bytes(JsonElement element)

@@ -54,6 +54,7 @@ public class ToonEncoderEncodeTests
         var toonWriter = ToonWriter.Create(ref bufferWriter);
 
         Cysharp.AI.ToonEncoder.Encode(ref toonWriter, element);
+        toonWriter.Flush();
 
         var result = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
         await Assert.That(result).IsEqualTo(ExpectedToon);
