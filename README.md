@@ -112,7 +112,7 @@ public IEnumerable<AIFunction> GetAIFunctions()
         SerializerOptions = jsonSerializerOptions
     };
 
-    yield return AIFunctionFactory.Create(GetProjects, factoryOptions);
+    yield return AIFunctionFactory.Create(GetDiagnostics, factoryOptions);
 }
 
 [Description("Get error diagnostics of the target project.")]
