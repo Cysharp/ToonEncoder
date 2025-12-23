@@ -1,0 +1,23 @@
+name: Build-Debug
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "main"
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-dotnet:
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: Cysharp/Actions/.github/actions/checkout@main
+      - uses: Cysharp/Actions/.github/actions/setup-dotnet@main
+      - run: dotnet build -c Release
+      - run: dotnet test -c Release --no-build
+      - run: dotnet pack -c Release --no-build -p:IncludeSymbols=true -o $GITHUB_WORKSPACE/artifacts
