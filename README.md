@@ -5,7 +5,7 @@
 
 High performance [Token-Oriented Object Notation (TOON)](https://github.com/toon-format/toon) encoder for .NET. TOON is a token-efficient format designed to reduce LLM input/output costs. ToonEncoder enables natural handling of Toon in C# through integration with Microsoft.Extensions.AI and other features.
 
-<!-- TODO: image -->
+![](https://github.com/user-attachments/assets/6f797ef6-d8cf-4f40-a3c5-372f09c56979)
 
 ToonEncoder has several options (Source Generator, TabularArray specialization, etc.), all of which are overwhelmingly memory-efficient and faster than other libraries.
 
