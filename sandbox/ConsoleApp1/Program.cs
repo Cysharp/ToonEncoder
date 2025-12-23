@@ -10,30 +10,30 @@ using System.Text.Json.Serialization;
 using System.Xml.Linq;
 
 
-var str = Cysharp.AI.Converters.SimpleClassSimpleObjectConverter.Encode(new SimpleClass
+var item = new Item
 {
-    Id = 1,
-    Name = "Test",
-    NotMyUser = new[]
-    {
-        new User(1, "User1", "Admin", DateTime.Now, DateTimeOffset.Now, TimeSpan.FromHours(1), MyEnum.Fruit),
-        new User(2, "User2", "User", DateTime.Now, DateTimeOffset.Now, TimeSpan.FromHours(2), MyEnum.Orange),
-    },
-    Me = MyEnum.Apple,
-    MyProperty = new[] { 1, 2, 3, 4, 5 },
-    MyUser = new[]
-    {
-        new User(1, "User1", "Admin", DateTime.Now, DateTimeOffset.Now, TimeSpan.FromHours(1), MyEnum.Fruit),
-        new User(2, "User2", "User", DateTime.Now, DateTimeOffset.Now, TimeSpan.FromHours(2), MyEnum.Orange),
-    }
-});
+    Status = "OK",
+    Users = [new(1, "Alice", "Admin"), new(2, "Bob", "User")]
+};
 
-Console.WriteLine(str);
+var toon = Cysharp.AI.Converters.ItemSimpleObjectConverter.Encode(item);
+
+// Status: OK
+// Users[2]{Id,Name,Role}:
+//   1,Alice,Admin
+//   2,Bob,User
+Console.WriteLine(toon);
 
 
+[GenerateToonSimpleObjectConverter]
+public record Item
+{
+    public required string Status { get; init; }
+    public required User[] Users { get; init; }
+}
 
 [GenerateToonTabularArrayConverter]
-public record User(int Id, string Name, string Role, DateTime dt, DateTimeOffset dt2, TimeSpan ts, MyEnum me);
+public record User(int Id, string Name, string Role);
 
 
 [GenerateToonSimpleObjectConverter]
