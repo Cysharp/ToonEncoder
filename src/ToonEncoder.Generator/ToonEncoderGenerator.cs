@@ -1,7 +1,8 @@
-﻿using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Text;
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Text;
 
 namespace Cysharp.AI;
 
@@ -13,34 +14,34 @@ public class ToonEncoderGenerator : IIncrementalGenerator
         context.RegisterPostInitializationOutput(EmitAttributes);
 
         var tabularArray = context.SyntaxProvider.ForAttributeWithMetadataName("Cysharp.AI.GenerateToonTabularArrayConverterAttribute",
-            (node, cancellationToken) => true,
-            (context, cancellationToken) =>
-            {
-                if (context.TargetSymbol is ITypeSymbol typeSymbol)
+                (node, cancellationToken) => true,
+                (context, cancellationToken) =>
                 {
-                    return new ToonObjectInfo(typeSymbol);
-                }
-                else
-                {
-                    return null;
-                }
+                    if (context.TargetSymbol is ITypeSymbol typeSymbol)
+                    {
+                        return new ToonObjectInfo(typeSymbol);
+                    }
+                    else
+                    {
+                        return null;
+                    }
             })
             .Where(x => x != null);
 
         context.RegisterSourceOutput(tabularArray, EmitTabularArrayConverter!);
 
         var simpleObject = context.SyntaxProvider.ForAttributeWithMetadataName("Cysharp.AI.GenerateToonSimpleObjectConverterAttribute",
-            (node, cancellationToken) => true,
-            (context, cancellationToken) =>
-            {
-                if (context.TargetSymbol is ITypeSymbol typeSymbol)
+                (node, cancellationToken) => true,
+                (context, cancellationToken) =>
                 {
-                    return new ToonObjectInfo(typeSymbol);
-                }
-                else
-                {
-                    return null;
-                }
+                    if (context.TargetSymbol is ITypeSymbol typeSymbol)
+                    {
+                        return new ToonObjectInfo(typeSymbol);
+                    }
+                    else
+                    {
+                        return null;
+                    }
             })
             .Where(x => x != null);
 
@@ -83,23 +84,23 @@ namespace Cysharp.AI
         {
             return;
         }
-
+        var accessible = objectInfo.AccessibilityKeyWord;
         var converterName = $"{objectInfo.ElementFullName.Replace("global::", "").Replace(".", "_")}TabularArrayConverter";
         var arrayType = $"{objectInfo.ElementFullName}[]?";
         var utf8FieldNames = string.Join(", ", objectInfo.PropertyNames.Select(n => $"\"{n}\"u8.ToArray()"));
         var encodeRow = string.Join("\n", objectInfo.PropertyNames.Select((name, index) =>
-        {
-            var kind = objectInfo.PropertyKinds![index];
-            var str = kind switch
-            {
-                ToonPrimitiveKind.Boolean => $"toonWriter.WriteBoolean(item.{name});",
-                ToonPrimitiveKind.String => $"toonWriter.WriteString(item.{name});",
-                ToonPrimitiveKind.Number => $"toonWriter.WriteNumber(item.{name});",
+                {
+                    var kind = objectInfo.PropertyKinds![index];
+                    var str = kind switch
+                    {
+                        ToonPrimitiveKind.Boolean => $"toonWriter.WriteBoolean(item.{name});",
+                        ToonPrimitiveKind.String => $"toonWriter.WriteString(item.{name});",
+                        ToonPrimitiveKind.Number => $"toonWriter.WriteNumber(item.{name});",
                 ToonPrimitiveKind.NullableBoolean => $"if (item.{name} == null) {{ toonWriter.WriteNull(); }} else {{ toonWriter.WriteBoolean(item.{name}); }}",
                 ToonPrimitiveKind.NullableNumber => $"if (item.{name} == null) {{ toonWriter.WriteNull(); }} else {{ toonWriter.WriteNumber(item.{name}); }}",
                 ToonPrimitiveKind.NullableString => $"if (item.{name} == null) {{ toonWriter.WriteNull(); }} else {{ toonWriter.WriteString(item.{name}); }}",
                 _ => throw new NotSupportedException($"Unsupported property type for Toon serialization: {kind}"),
-            };
+                    };
             return "                "/* indent */ + str;
         }));
 
@@ -121,7 +122,7 @@ using System.Threading.Tasks;
 
 namespace Cysharp.AI.Converters
 {
-    public class {{converterName}} : JsonConverter<{{arrayType}}>
+    {{accessible}} class {{converterName}} : JsonConverter<{{arrayType}}>
     {
         static readonly ReadOnlyMemory<byte>[] utf8FieldNames = [{{utf8FieldNames}}];
 
@@ -241,6 +242,7 @@ namespace Cysharp.AI.Converters
 
         const string defaultIndent = "            ";
         var encodeRow = new StringBuilder();
+        var accessible = objectInfo.AccessibilityKeyWord;
         for (int i = 0; i < objectInfo.PropertyNames!.Length; i++)
         {
             var name = objectInfo.PropertyNames[i];
@@ -355,7 +357,7 @@ using System.Threading.Tasks;
 
 namespace Cysharp.AI.Converters
 {
-    public class {{converterName}} : JsonConverter<{{objectType}}>
+    {{accessible}} class {{converterName}} : JsonConverter<{{objectType}}>
     {
 {{utf8FieldNamesDeclaration}}
 
@@ -450,6 +452,7 @@ public record struct LocationSlim(string FilePath, TextSpan TextSpan, LinePositi
 
 public record ToonObjectInfo
 {
+    public string AccessibilityKeyWord { get; }
     public string ElementFullName { get; }
     public bool IsReferenceType { get; }
     public LocationSlim Location { get; }
@@ -467,6 +470,7 @@ public record ToonObjectInfo
 
     public ToonObjectInfo(ITypeSymbol symbol)
     {
+        AccessibilityKeyWord = SyntaxFacts.GetText(symbol.DeclaredAccessibility);
         ElementFullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         IsReferenceType = symbol.IsReferenceType;
 
@@ -501,9 +505,9 @@ public record ToonObjectInfo
             })
             .ToArray();
 
-        PropertyNames = nameAndKinds.Select(x => x.Name).ToArray();
-        PropertyKinds = nameAndKinds.Select(x => x.Kind).ToArray();
-        NestedArrayInfos = nameAndKinds.Select(x => x.NestedInfo!).ToArray();
+        PropertyNames = [.. nameAndKinds.Select(x => x.Name)];
+        PropertyKinds = [.. nameAndKinds.Select(x => x.Kind)];
+        NestedArrayInfos = [.. nameAndKinds.Select(x => x.NestedInfo!)];
 
         static (ToonPrimitiveKind, ToonObjectInfo?) GetToonPrimitive(ITypeSymbol t)
         {
@@ -613,11 +617,11 @@ public record ToonObjectInfo
         if (hasUnsupported)
         {
             sourceProductionContext.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor(
-                "TEG001",
-                "Unsupported Property Type for Toon Tabular Array Converter",
-                $"The property type is not supported for Toon Tabular Array serialization in {ElementFullName.Replace("global::", "")}.{string.Join(", ", unsupportedPropertyNames ?? [])}.",
-                "ToonEncoderGenerator",
-                DiagnosticSeverity.Error,
+                        "TEG001",
+                        "Unsupported Property Type for Toon Tabular Array Converter",
+                        $"The property type is not supported for Toon Tabular Array serialization in {ElementFullName.Replace("global::", "")}.{string.Join(", ", unsupportedPropertyNames ?? [])}.",
+                        "ToonEncoderGenerator",
+                        DiagnosticSeverity.Error,
                 isEnabledByDefault: true), Location.CreateLocation()));
 
             return false;
@@ -641,10 +645,7 @@ public record ToonObjectInfo
             {
                 void AddUnsupported()
                 {
-                    if (unsupportedPropertyNames == null)
-                    {
-                        unsupportedPropertyNames = new List<string>();
-                    }
+                    unsupportedPropertyNames ??= [];
                     unsupportedPropertyNames.Add(PropertyNames![i]);
                     hasUnsupported = true;
                 }
@@ -683,11 +684,11 @@ public record ToonObjectInfo
         if (hasUnsupported)
         {
             sourceProductionContext.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor(
-                "TEG002",
-                "Unsupported Property Type for Toon Simple Object Converter",
-                $"The property type is not supported for Toon Simple Object serialization in {ElementFullName.Replace("global::", "")}.{string.Join(", ", unsupportedPropertyNames)}. Property must be toon-primitive or primitive-array or tabular-array convertible array.",
-                "ToonEncoderGenerator",
-                DiagnosticSeverity.Error,
+                        "TEG002",
+                        "Unsupported Property Type for Toon Simple Object Converter",
+                        $"The property type is not supported for Toon Simple Object serialization in {ElementFullName.Replace("global::", "")}.{string.Join(", ", unsupportedPropertyNames)}. Property must be toon-primitive or primitive-array or tabular-array convertible array.",
+                        "ToonEncoderGenerator",
+                        DiagnosticSeverity.Error,
                 isEnabledByDefault: true), Location.CreateLocation()));
 
             return false;
