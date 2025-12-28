@@ -1,20 +1,6 @@
 ﻿using Cysharp.AI;
-using Cysharp.AI.Internal;
-using System.Buffers;
-using System.Collections.Generic;
-using System.Data;
-using System.IO.Pipelines;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Xml.Linq;
 
-
-var item = new Item
-{
-    Status = "OK",
-    Users = [new(1, "Alice", "Admin"), new(2, "Bob", "User")]
-};
+var item = new Item { Status = "OK", Users = [new(1, "Alice", "Admin"), new(2, "Bob", "User")] };
 
 var toon = Cysharp.AI.Converters.ItemSimpleObjectConverter.Encode(item);
 
@@ -24,20 +10,18 @@ var toon = Cysharp.AI.Converters.ItemSimpleObjectConverter.Encode(item);
 //   2,Bob,User
 Console.WriteLine(toon);
 
-
 [GenerateToonSimpleObjectConverter]
-public record Item
+record Item
 {
     public required string Status { get; init; }
     public required User[] Users { get; init; }
 }
 
 [GenerateToonTabularArrayConverter]
-public record User(int Id, string Name, string Role);
-
+record User(int Id, string Name, string Role);
 
 [GenerateToonSimpleObjectConverter]
-public class SimpleClass
+class SimpleClass
 {
     public int Id { get; set; }
     public string? Name { get; set; }
@@ -48,13 +32,14 @@ public class SimpleClass
     // public User2 MyProperty1000 { get; set; }
 }
 
-
-public enum MyEnum
+enum MyEnum
 {
-    Fruit, Orange, Apple
+    Fruit,
+    Orange,
+    Apple,
 }
 
-public class User2
+class User2
 {
     public List<int>? MyProperty2 { get; set; }
 }
