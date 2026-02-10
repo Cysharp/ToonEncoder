@@ -1,4 +1,5 @@
 ﻿using Cysharp.AI;
+using SerializerFoundation;
 using System.Buffers;
 using System.Text;
 
@@ -7,15 +8,16 @@ namespace ToonEncoder.Tests;
 // https://toonformat.dev/guide/format-overview.html
 public class FormatOverviewTest
 {
-    delegate void WriteBody(ref ToonWriter<ArrayBufferWriter<byte>> writer);
+    delegate void WriteBody(ref ToonWriter<NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>> writer);
 
     // helper
     static string Encode(WriteBody write, Delimiter delimiter = Delimiter.Comma)
     {
         var bufferWriter = new System.Buffers.ArrayBufferWriter<byte>();
-        var toonWriter = ToonWriter.Create(ref bufferWriter, delimiter);
+        var writeBuffer = new NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>(bufferWriter);
+        var toonWriter = new ToonWriter<NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>>(ref writeBuffer, delimiter);
         write(ref toonWriter);
-        toonWriter.Flush();
+        writeBuffer.Flush();
         return Encoding.UTF8.GetString(bufferWriter.WrittenSpan).Replace("\n", Environment.NewLine);
     }
 

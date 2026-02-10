@@ -17,7 +17,7 @@ namespace BenchmarkSuite
     [GenerateToonTabularArrayConverter]
     public record Person(int Id, string Name, int Age);
 
-    [Orderer(SummaryOrderPolicy.FastestToSlowest)]
+    [Orderer(SummaryOrderPolicy.Default)]
     public class EncodeBenchmark
     {
         Person[] data;
@@ -49,39 +49,39 @@ namespace BenchmarkSuite
             return Cysharp.AI.Converters.BenchmarkSuite_PersonTabularArrayConverter.EncodeAsTabularArray(data);
         }
 
-        // https://github.com/StefH/Toon.NET
-        [Benchmark]
-        public string Toon_Encode()
-        {
-            return global::Toon.ToonEncoder.Encode(data);
-        }
+        //// https://github.com/StefH/Toon.NET
+        //[Benchmark]
+        //public string Toon_Encode()
+        //{
+        //    return global::Toon.ToonEncoder.Encode(data);
+        //}
 
-        // https://github.com/0xZunia/ToonSharp
-        [Benchmark]
-        public string ToonSharp_Serialize()
-        {
-            return global::ToonSharp.ToonSerializer.Serialize(data);
-        }
+        //// https://github.com/0xZunia/ToonSharp
+        //[Benchmark]
+        //public string ToonSharp_Serialize()
+        //{
+        //    return global::ToonSharp.ToonSerializer.Serialize(data);
+        //}
 
-        // https://github.com/Nicola898989/ToonNet
-        [Benchmark]
-        public string ToonNet_Encode()
-        {
-            return global::ToonNetSerializer.ToonNet.Encode(data);
-        }
+        //// https://github.com/Nicola898989/ToonNet
+        //[Benchmark]
+        //public string ToonNet_Encode()
+        //{
+        //    return global::ToonNetSerializer.ToonNet.Encode(data);
+        //}
 
-        // https://github.com/CharlesHunt/ToonDotNet
-        [Benchmark]
-        public string ToonDotNet_Encode()
-        {
-            return global::ToonFormat.Toon.Encode(data);
-        }
+        //// https://github.com/CharlesHunt/ToonDotNet
+        //[Benchmark]
+        //public string ToonDotNet_Encode()
+        //{
+        //    return global::ToonFormat.Toon.Encode(data);
+        //}
 
-        // Official impl: https://github.com/toon-format/toon-dotnet
-        [Benchmark]
-        public string ToonOfficial_Encode()
-        {
-            return global::Toon.Format.ToonEncoder.Encode(data);
-        }
+        //// Official impl: https://github.com/toon-format/toon-dotnet
+        //[Benchmark]
+        //public string ToonOfficial_Encode()
+        //{
+        //    return global::Toon.Format.ToonEncoder.Encode(data);
+        //}
     }
 }

@@ -1,4 +1,4 @@
-﻿using Cysharp.AI.Internal;
+﻿using SerializerFoundation;
 using System.Text.Json;
 
 namespace Cysharp.AI;
@@ -17,19 +17,28 @@ public class ToonConverter<T> : System.Text.Json.Serialization.JsonConverter<T>
     }
 
     // don't use JsonSerializerOptions argument to avoid stack-overflow(recursive Toon encoding).
-    public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions _)
+    public override unsafe void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions _)
     {
-        var bufferWriter = new ValueArrayPoolBufferWriter<byte>();
-        try
+        Span<byte> buffer = stackalloc byte[256];
+        fixed (byte* p = buffer)
         {
-            ToonEncoder.Encode(ref bufferWriter, value, jsonSerializerOptions);
+            var writeBuffer = new NonRefArrayPoolListWriteBuffer(p, buffer.Length);
+            try
+            {
+                ToonEncoder.Encode(ref writeBuffer, value, jsonSerializerOptions); // use root jsonSerializerOptions
+                writeBuffer.Flush();
 
-            // Write as JSON string
-            writer.WriteStringValue(bufferWriter.WrittenSpan);
-        }
-        finally
-        {
-            bufferWriter.Dispose();
+                var segments = writeBuffer.GetWrittenSegments();
+                while (segments.TryGetNext(out var span))
+                {
+                    writer.WriteStringValueSegment(span, isFinalSegment: false);
+                }
+                writer.WriteStringValueSegment((ReadOnlySpan<byte>)[], isFinalSegment: true);
+            }
+            finally
+            {
+                writeBuffer.Dispose();
+            }
         }
     }
 
@@ -52,19 +61,28 @@ public class ToonTabularArrayConverter<T> : System.Text.Json.Serialization.JsonC
         this.jsonSerializerOptions = jsonSerializerOptionsWithoutToonConverters;
     }
 
-    public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions _)
+    public override unsafe void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions _)
     {
-        var bufferWriter = new ValueArrayPoolBufferWriter<byte>();
-        try
+        Span<byte> buffer = stackalloc byte[256];
+        fixed (byte* p = buffer)
         {
-            ToonEncoder.EncodeAsTabularArray(ref bufferWriter, value, jsonSerializerOptions);
+            var writeBuffer = new NonRefArrayPoolListWriteBuffer(p, buffer.Length);
+            try
+            {
+                ToonEncoder.EncodeAsTabularArray(ref writeBuffer, value, jsonSerializerOptions); // use root jsonSerializerOptions
+                writeBuffer.Flush();
 
-            // Write as JSON string
-            writer.WriteStringValue(bufferWriter.WrittenSpan);
-        }
-        finally
-        {
-            bufferWriter.Dispose();
+                var segments = writeBuffer.GetWrittenSegments();
+                while (segments.TryGetNext(out var span))
+                {
+                    writer.WriteStringValueSegment(span, isFinalSegment: false);
+                }
+                writer.WriteStringValueSegment((ReadOnlySpan<byte>)[], isFinalSegment: true);
+            }
+            finally
+            {
+                writeBuffer.Dispose();
+            }
         }
     }
 

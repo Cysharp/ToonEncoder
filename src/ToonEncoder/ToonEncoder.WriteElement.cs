@@ -1,4 +1,5 @@
-﻿using System.Buffers;
+﻿using SerializerFoundation;
+using System.Buffers;
 using System.IO.Hashing;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -26,8 +27,8 @@ static partial class ToonEncoder
         }
     }
 
-    static void WriteElement<TBufferWriter>(ref ToonWriter<TBufferWriter> toonWriter, JsonElement element)
-        where TBufferWriter : IBufferWriter<byte>
+    static void WriteElement<TWriteBuffer>(ref ToonWriter<TWriteBuffer> toonWriter, JsonElement element)
+        where TWriteBuffer : struct, IWriteBuffer
     {
         switch (element.ValueKind)
         {

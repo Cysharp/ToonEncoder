@@ -1,7 +1,7 @@
 ﻿namespace Cysharp.AI;
 
 // https://toonformat.dev/guide/format-overview#arrays
-partial struct ToonWriter<TBufferWriter>
+partial struct ToonWriter<TWriteBuffer>
 {
     public void WriteStartInlineArray(int arrayLength)
     {
@@ -52,7 +52,7 @@ partial struct ToonWriter<TBufferWriter>
             }
             else
             {
-                WriteRaw((byte)Delimiter);
+                WriteRaw((byte)delimiter);
             }
 
             WriteUtf16String(fieldName, QuoteScope.ObjectKey); // tabular is in key
@@ -83,7 +83,7 @@ partial struct ToonWriter<TBufferWriter>
             }
             else
             {
-                WriteRaw((byte)Delimiter);
+                WriteRaw(delimiter);
             }
 
             if (escaped)
@@ -176,7 +176,7 @@ partial struct ToonWriter<TBufferWriter>
         if (!(state.Scope == WriteScope.InlineArray || state.Scope == WriteScope.TabularArray)) return;
         if (state.Index != 0)
         {
-            WriteRaw((byte)Delimiter);
+            WriteRaw(delimiter);
         }
         state.Index++;
     }
@@ -184,6 +184,6 @@ partial struct ToonWriter<TBufferWriter>
     void WriteDelimiterForArrayLength()
     {
         if (Delimiter == Delimiter.Comma) return;
-        WriteRaw((byte)Delimiter);
+        WriteRaw(delimiter);
     }
 }

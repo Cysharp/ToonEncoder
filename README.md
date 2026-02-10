@@ -137,9 +137,11 @@ In this case, when the `CodeDiagnostic[]` count is large, there is a significant
 
 ## ToonEncoder
 
+It adopts [SerializerFoundation](https://github.com/Cysharp/SerializerFoundation) as the foundation for the Serializer. `IWriteBuffer` is SerializerFoundation's type.
+
 ### JsonElement to Toon
 
-`ToonEncoder.Encode` supports conversion from `JsonElement` to `string` or `byte[]`, and writing to `IBufferWriter<byte>` or `ToonWriter`.
+`ToonEncoder.Encode` supports conversion from `JsonElement` to `string` or `byte[]`, and writing to `IWriteBuffer`, `IBufferWriter<byte>` or `ToonWriter`.
 
 ```csharp
 namespace Cysharp.AI;
@@ -148,11 +150,14 @@ public static class ToonEncoder
 {
     public static string Encode(JsonElement element);
 
-    public static void Encode<TBufferWriter>(ref TBufferWriter bufferWriter, JsonElement element)
-        where TBufferWriter : IBufferWriter<byte>;
+    public static void Encode<TBufferWriter>(TBufferWriter bufferWriter, JsonElement element)
+        where TBufferWriter : class, IBufferWriter<byte>;
+    
+    public static void Encode<TWriteBuffer>(ref TWriteBuffer writeBuffer, JsonElement element)
+        where TWriteBuffer : struct, IWriteBuffer;
 
-    public static void Encode<TBufferWriter>(ref ToonWriter<TBufferWriter> toonWriter, JsonElement element)
-        where TBufferWriter : IBufferWriter<byte>;
+    public static void Encode<TWriteBuffer>(ref ToonWriter<TWriteBuffer> toonWriter, JsonElement element)
+        where TWriteBuffer : struct, IWriteBuffer;
 
     public static byte[] EncodeToUtf8Bytes(JsonElement element);
 
@@ -160,7 +165,7 @@ public static class ToonEncoder
 }
 ```
 
-Using the `IBufferWriter<byte>` overload writes data directly in UTF-8, which yields better performance than going through `string` conversion.
+Using the `IWriteBuffer` or `IBufferWriter<byte>` overload writes data directly in UTF-8, which yields better performance than going through `string` conversion.
 
 If the `JsonElement` is an `array` where all elements appear in the same order and all are primitives (not Array or Object), the `EncodeAsTabularArray` method provides higher performance conversion.
 
@@ -171,15 +176,18 @@ public static class ToonEncoder
 {
     public static string EncodeAsTabularArray(JsonElement array);
 
-    public static void EncodeAsTabularArray<TBufferWriter>(ref TBufferWriter bufferWriter, JsonElement array)
-        where TBufferWriter : IBufferWriter<byte>;
+    public static void EncodeAsTabularArray<TBufferWriter>(TBufferWriter bufferWriter, JsonElement array)
+        where TBufferWriter : class, IBufferWriter<byte>;
+
+    public static void EncodeAsTabularArray<TWriteBuffer>(ref TWriteBuffer writeBuffer, JsonElement array)
+        where TWriteBuffer : struct, IWriteBuffer
 
     public static byte[] EncodeAsTabularArrayToUtf8Bytes(JsonElement array);
 
     public static async ValueTask EncodeAsTabularArrayAsync(Stream utf8Stream, JsonElement array, CancellationToken cancellationToken = default);
 
-    public static void EncodeAsTabularArray<TBufferWriter>(ref ToonWriter<TBufferWriter> toonWriter, JsonElement array)
-        where TBufferWriter : IBufferWriter<byte>;
+    public static void EncodeAsTabularArray<TWriteBuffer>(ref ToonWriter<TWriteBuffer> toonWriter, JsonElement array)
+        where TWriteBuffer : struct, IWriteBuffer
 }
 ```
 
@@ -194,29 +202,35 @@ public static class ToonEncoder
 {
     public static string Encode<T>(T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default);
 
-    public static void Encode<TBufferWriter, T>(ref TBufferWriter bufferWriter, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
-        where TBufferWriter : IBufferWriter<byte>;
+    public static void Encode<TBufferWriter, T>(TBufferWriter bufferWriter, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
+        where TBufferWriter : class, IBufferWriter<byte>;
+
+    public static void Encode<TWriteBuffer, T>(ref TWriteBuffer writeBuffer, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
+        where TWriteBuffer : struct, IWriteBuffer;
    
     public static byte[] EncodeToUtf8Bytes<T>(T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default);
 
     public static async ValueTask EncodeAsync<T>(Stream utf8Stream, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default, CancellationToken cancellationToken = default);
 
-    public static void Encode<TBufferWriter, T>(ref ToonWriter<TBufferWriter> toonWriter, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
-        where TBufferWriter : IBufferWriter<byte>;
+    public static void Encode<TWriteBuffer, T>(ref ToonWriter<TWriteBuffer> toonWriter, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
+        where TWriteBuffer : struct, IWriteBuffer;
 
     // AsTabularArray
 
     public static string EncodeAsTabularArray<T>(T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default);
 
-    public static void EncodeAsTabularArray<TBufferWriter, T>(ref TBufferWriter bufferWriter, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
-        where TBufferWriter : IBufferWriter<byte>;
+    public static void EncodeAsTabularArray<TBufferWriter, T>(TBufferWriter bufferWriter, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
+        where TBufferWriter : class, IBufferWriter<byte>;
+
+    public static void EncodeAsTabularArray<TWriteBuffer, T>(ref TWriteBuffer writeBuffer, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
+        where TWriteBuffer : struct, IWriteBuffer;
 
     public static byte[] EncodeAsTabularArrayToUtf8Bytes<T>(T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default);
 
     public static async ValueTask EncodeAsTabularArrayAsync<T>(Stream utf8Stream, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default, CancellationToken cancellationToken = default);
 
-    public static void EncodeAsTabularArray<TBufferWriter, T>(ref ToonWriter<TBufferWriter> toonWriter, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
-        where TBufferWriter : IBufferWriter<byte>;
+    public static void EncodeAsTabularArray<TWriteBuffer, T>(ref ToonWriter<TWriteBuffer> toonWriter, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
+        where TWriteBuffer : struct, IWriteBuffer;
 }
 ```
 
@@ -224,7 +238,7 @@ This method accepts `JsonSerializerOptions` as an argument, but do not include `
 
 ### ToonWriter
 
-ToonWriter is the most primitive API for flexibly controlling output and writing to `IArrayBufferWriter<byte>` in TOON format.
+ToonWriter is the most primitive API for flexibly controlling output and writing to `IWriteBuffer` or `IArrayBufferWriter<byte>` in TOON format. When applying it to `IArrayBuffer<byte>`, you need to wrap it in `IWriteBuffer`.
 
 ```csharp
 using Cysharp.AI;
@@ -233,8 +247,11 @@ using System.Text;
 
 var arrayBufferWriter = new ArrayBufferWriter<byte>();
 
+// wrap to IWriteBuffer
+var writeBuffer = new NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>(arrayBufferWriter);
+
 // create ToonWriter
-var toonWriter = ToonWriter.Create(ref arrayBufferWriter);
+var toonWriter = new ToonWriter<NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>>(ref writeBuffer);
 
 // write as InlineArray
 toonWriter.WriteStartInlineArray(5);
@@ -245,8 +262,9 @@ toonWriter.WriteString("date");
 toonWriter.WriteString("elderberry");
 toonWriter.WriteEndInlineArray();
 
-// Flush writes to the IBufferWriter<byte> passed by ref
-toonWriter.Flush();
+// Flush writeBuffer.
+writeBuffer.Flush();
+writeBuffer.Dispose();
 
 // [5]: apple,banana,cherry,date,elderberry
 var str = Encoding.UTF8.GetString(arrayBufferWriter.WrittenSpan);
@@ -265,7 +283,8 @@ In object format, wrap with `WriteStartObject`-`WriteEndObject`, and express `ke
 
 ```csharp
 var arrayBufferWriter = new ArrayBufferWriter<byte>();
-var toonWriter = ToonWriter.Create(ref arrayBufferWriter);
+var writeBuffer = new NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>(arrayBufferWriter);
+var toonWriter = new ToonWriter<NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>>(ref writeBuffer);
 
 // write as object
 toonWriter.WriteStartObject();
@@ -278,7 +297,8 @@ toonWriter.WriteNumber(100);
 
 toonWriter.WriteEndObject();
 
-toonWriter.Flush();
+writeBuffer.Flush();
+writeBuffer.Dispose();
 
 // fruits: apple
 // price: 100
@@ -290,7 +310,8 @@ Nested case:
 
 ```csharp
 var arrayBufferWriter = new ArrayBufferWriter<byte>();
-var toonWriter = ToonWriter.Create(ref arrayBufferWriter);
+var writeBuffer = new NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>(arrayBufferWriter);
+var toonWriter = new ToonWriter<NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>>(ref writeBuffer);
 
 // nested object/array
 toonWriter.WriteStartObject();
@@ -307,7 +328,8 @@ toonWriter.WriteEndInlineArray();
 
 toonWriter.WriteEndObject();
 
-toonWriter.Flush();
+writeBuffer.Flush();
+writeBuffer.Dispose();
 
 // grade: first
 // ids[3]: 1,5,9
@@ -327,7 +349,8 @@ One-dimensional arrays of primitives can be expressed as InlineArray. Start with
 
 ```csharp
 var arrayBufferWriter = new ArrayBufferWriter<byte>();
-var toonWriter = ToonWriter.Create(ref arrayBufferWriter);
+var writeBuffer = new NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>(arrayBufferWriter);
+var toonWriter = new ToonWriter<NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>>(ref writeBuffer);
 
 // write as inline-array
 toonWriter.WriteStartInlineArray(3);
@@ -336,7 +359,8 @@ toonWriter.WriteNumber(20);
 toonWriter.WriteNumber(30);
 toonWriter.WriteEndInlineArray();
 
-toonWriter.Flush();
+writeBuffer.Flush();
+writeBuffer.Dispose();
 
 // [3] 10,20,30
 var str = Encoding.UTF8.GetString(arrayBufferWriter.WrittenSpan);
@@ -349,7 +373,8 @@ The CSV-like tabular format characteristic of TOON can be expressed as TabularAr
 
 ```csharp
 var arrayBufferWriter = new ArrayBufferWriter<byte>();
-var toonWriter = ToonWriter.Create(ref arrayBufferWriter);
+var writeBuffer = new NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>(arrayBufferWriter);
+var toonWriter = new ToonWriter<NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>>(ref writeBuffer);
 
 // write as Tabular Array
 toonWriter.WriteStartTabularArray(2, ["id", "name", "role"]);
@@ -366,7 +391,8 @@ toonWriter.WriteString("user");
 
 toonWriter.WriteEndTabularArray();
 
-toonWriter.Flush();
+writeBuffer.Flush();
+writeBuffer.Dispose();
 
 // [2]{id,name,role}:
 //   1,Alice,admin
@@ -381,7 +407,8 @@ Arrays containing non-primitive elements (objects, arrays, etc.) start with `Wri
 
 ```csharp
 var arrayBufferWriter = new ArrayBufferWriter<byte>();
-var toonWriter = ToonWriter.Create(ref arrayBufferWriter);
+var writeBuffer = new NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>(arrayBufferWriter);
+var toonWriter = new ToonWriter<NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>>(ref writeBuffer);
 
 // write as NonUniform Array
 toonWriter.WriteStartNonUniformArray(2);
@@ -394,7 +421,8 @@ toonWriter.WriteString("Alice");
 
 toonWriter.WriteEndNonUniformArray();
 
-toonWriter.Flush();
+writeBuffer.Flush();
+writeBuffer.Dispose();
 
 // [2]:
 //   - 1

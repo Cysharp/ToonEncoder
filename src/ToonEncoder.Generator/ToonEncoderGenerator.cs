@@ -110,10 +110,12 @@ namespace Cysharp.AI
 #nullable enable
 
 using Cysharp.AI.Internal;
+using SerializerFoundation;
 using System;
 using System.Buffers;
 using System.IO;
 using System.IO.Pipelines;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -126,51 +128,107 @@ namespace Cysharp.AI.Converters
     {
         static readonly ReadOnlyMemory<byte>[] utf8FieldNames = [{{utf8FieldNames}}];
 
-        public static string EncodeAsTabularArray({{arrayType}} value)
+        public static unsafe string EncodeAsTabularArray({{arrayType}} value)
         {
-            var bufferWriter = new Cysharp.AI.Internal.ValueArrayPoolBufferWriter<byte>();
-            try
+            Span<byte> buffer = stackalloc byte[256];
+            fixed (byte* p = buffer)
             {
-                EncodeAsTabularArray(ref bufferWriter, value);
-                return Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
-            }
-            finally
-            {
-                bufferWriter.Dispose();
+                var writeBuffer = new NonRefArrayPoolListWriteBuffer(p, buffer.Length);
+                try
+                {
+                    var writer = new ToonWriter<NonRefArrayPoolListWriteBuffer>(ref writeBuffer, Delimiter.Comma);
+                    EncodeAsTabularArray(ref writer, value);
+                    writeBuffer.Flush();
+
+                    var decoder = Encoding.UTF8.GetDecoder();
+
+                    var charCount = 0;
+                    var segments = writeBuffer.GetWrittenSegments();
+                    while (segments.TryGetNext(out var segment))
+                    {
+                        charCount += decoder.GetCharCount(segment, flush: false);
+                    }
+                    charCount += decoder.GetCharCount([], flush: true);
+
+                    var str = string.Create(charCount, (object?)null, (_, __) => { });
+                    var destination = MemoryMarshal.CreateSpan(ref MemoryMarshal.GetReference(str.AsSpan()), str.Length);
+
+                    decoder.Reset();  // reusing decoder to handling carry-over
+                    segments.Reset(); // iterate again
+                    while (segments.TryGetNext(out var source))
+                    {
+                        var written = decoder.GetChars(source, destination, flush: false);
+                        destination = destination.Slice(written);
+                    }
+
+                    decoder.GetChars([], destination, flush: true);
+                    return str;
+                }
+                finally
+                {
+                    writeBuffer.Dispose();
+                }
             }
         }
 
-        public static byte[] EncodeAsTabularArrayToUtf8Bytes({{arrayType}} value)
+        public static unsafe byte[] EncodeAsTabularArrayToUtf8Bytes({{arrayType}} value)
         {
-            var bufferWriter = new ValueArrayPoolBufferWriter<byte>();
-            try
+            Span<byte> buffer = stackalloc byte[256];
+            fixed (byte* p = buffer)
             {
-                EncodeAsTabularArray(ref bufferWriter, value);
-                return bufferWriter.WrittenSpan.ToArray();
-            }
-            finally
-            {
-                bufferWriter.Dispose();
+                var writeBuffer = new NonRefArrayPoolListWriteBuffer(p, buffer.Length);
+                try
+                {
+                    EncodeAsTabularArray(ref writeBuffer, value);
+                    writeBuffer.Flush();
+                    return writeBuffer.ToArray();
+                }
+                finally
+                {
+                    writeBuffer.Dispose();
+                }
             }
         }
 
         public static async ValueTask EncodeAsTabularArrayAsync(Stream utf8Stream, {{arrayType}} value, CancellationToken cancellationToken = default)
         {
             var writer = PipeWriter.Create(utf8Stream);
-            EncodeAsTabularArray(ref writer, value);
+            var writeBuffer = new NonRefBufferWriterWriteBuffer<PipeWriter>(writer);
+            try
+            {
+                EncodeAsTabularArray(ref writeBuffer, value);
+            }
+            finally
+            {
+                writeBuffer.Dispose();
+            }
             await writer.FlushAsync(cancellationToken);
         }
 
-        public static void EncodeAsTabularArray<TBufferWriter>(ref TBufferWriter bufferWriter, {{arrayType}} value)
-            where TBufferWriter : IBufferWriter<byte>
+        public static void EncodeAsTabularArray<TBufferWriter>(TBufferWriter bufferWriter, {{arrayType}} value)
+            where TBufferWriter : class, IBufferWriter<byte>
         {
-            var toonWriter = ToonWriter.Create(ref bufferWriter);
-            EncodeAsTabularArray(ref toonWriter, value);
-            toonWriter.Flush();
+            var writeBuffer = new NonRefBufferWriterWriteBuffer<TBufferWriter>(bufferWriter);
+            try
+            {
+                var toonWriter = new ToonWriter<NonRefBufferWriterWriteBuffer<TBufferWriter>>(ref writeBuffer);
+                EncodeAsTabularArray(ref toonWriter, value);
+            }
+            finally
+            {
+                writeBuffer.Dispose();
+            }
         }
 
-        public static void EncodeAsTabularArray<TBufferWriter>(ref ToonWriter<TBufferWriter> toonWriter, {{arrayType}} value)
-            where TBufferWriter : IBufferWriter<byte>
+        public static void EncodeAsTabularArray<TWriteBuffer>(ref TWriteBuffer writeBuffer, {{arrayType}} value)
+            where TWriteBuffer : struct, IWriteBuffer
+        {
+            var toonWriter = new ToonWriter<TWriteBuffer>(ref writeBuffer);
+            EncodeAsTabularArray(ref toonWriter, value);
+        }
+
+        public static void EncodeAsTabularArray<TWriteBuffer>(ref ToonWriter<TWriteBuffer> toonWriter, {{arrayType}} value)
+            where TWriteBuffer : struct, IWriteBuffer
         {
             if (value == null)
             {
@@ -189,17 +247,29 @@ namespace Cysharp.AI.Converters
             toonWriter.WriteEndTabularArray();
         }
 
-        public override void Write(Utf8JsonWriter utf8JsonWriter, {{arrayType}} value, JsonSerializerOptions options)
+        public override unsafe void Write(Utf8JsonWriter utf8JsonWriter, {{arrayType}} value, JsonSerializerOptions options)
         {
-            var bufferWriter = new Cysharp.AI.Internal.ValueArrayPoolBufferWriter<byte>();
-            try
+            Span<byte> buffer = stackalloc byte[256];
+            fixed (byte* p = buffer)
             {
-                EncodeAsTabularArray(ref bufferWriter, value);
-                utf8JsonWriter.WriteStringValue(bufferWriter.WrittenSpan);
-            }
-            finally
-            {
-                bufferWriter.Dispose();
+                var writeBuffer = new NonRefArrayPoolListWriteBuffer(p, buffer.Length);
+                try
+                {
+                    var toonWriter = new ToonWriter<NonRefArrayPoolListWriteBuffer>(ref writeBuffer);
+                    EncodeAsTabularArray(ref toonWriter, value);
+                    writeBuffer.Flush();
+
+                    var segments = writeBuffer.GetWrittenSegments();
+                    while (segments.TryGetNext(out var span))
+                    {
+                        utf8JsonWriter.WriteStringValueSegment(span, isFinalSegment: false);
+                    }
+                    utf8JsonWriter.WriteStringValueSegment((ReadOnlySpan<byte>)[], isFinalSegment: true);
+                }
+                finally
+                {
+                    writeBuffer.Dispose();
+                }
             }
         }
 
@@ -345,10 +415,12 @@ namespace Cysharp.AI.Converters
 #nullable enable
 
 using Cysharp.AI.Internal;
+using SerializerFoundation;
 using System;
 using System.Buffers;
 using System.IO;
 using System.IO.Pipelines;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -361,51 +433,107 @@ namespace Cysharp.AI.Converters
     {
 {{utf8FieldNamesDeclaration}}
 
-        public static string Encode({{objectType}} value)
+        public static unsafe string Encode({{objectType}} value)
         {
-            var bufferWriter = new Cysharp.AI.Internal.ValueArrayPoolBufferWriter<byte>();
-            try
+            Span<byte> buffer = stackalloc byte[256];
+            fixed (byte* p = buffer)
             {
-                Encode(ref bufferWriter, value);
-                return Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
-            }
-            finally
-            {
-                bufferWriter.Dispose();
+                var writeBuffer = new NonRefArrayPoolListWriteBuffer(p, buffer.Length);
+                try
+                {
+                    var writer = new ToonWriter<NonRefArrayPoolListWriteBuffer>(ref writeBuffer, Delimiter.Comma);
+                    Encode(ref writer, value);
+                    writeBuffer.Flush();
+
+                    var decoder = Encoding.UTF8.GetDecoder();
+
+                    var charCount = 0;
+                    var segments = writeBuffer.GetWrittenSegments();
+                    while (segments.TryGetNext(out var segment))
+                    {
+                        charCount += decoder.GetCharCount(segment, flush: false);
+                    }
+                    charCount += decoder.GetCharCount([], flush: true);
+
+                    var str = string.Create(charCount, (object?)null, (_, __) => { });
+                    var destination = MemoryMarshal.CreateSpan(ref MemoryMarshal.GetReference(str.AsSpan()), str.Length);
+
+                    decoder.Reset();  // reusing decoder to handling carry-over
+                    segments.Reset(); // iterate again
+                    while (segments.TryGetNext(out var source))
+                    {
+                        var written = decoder.GetChars(source, destination, flush: false);
+                        destination = destination.Slice(written);
+                    }
+
+                    decoder.GetChars([], destination, flush: true);
+                    return str;
+                }
+                finally
+                {
+                    writeBuffer.Dispose();
+                }
             }
         }
 
-        public static byte[] EncodeToUtf8Bytes({{objectType}} value)
+        public static unsafe byte[] EncodeToUtf8Bytes({{objectType}} value)
         {
-            var bufferWriter = new ValueArrayPoolBufferWriter<byte>();
-            try
+            Span<byte> buffer = stackalloc byte[256];
+            fixed (byte* p = buffer)
             {
-                Encode(ref bufferWriter, value);
-                return bufferWriter.WrittenSpan.ToArray();
-            }
-            finally
-            {
-                bufferWriter.Dispose();
+                var writeBuffer = new NonRefArrayPoolListWriteBuffer(p, buffer.Length);
+                try
+                {
+                    Encode(ref writeBuffer, value);
+                    writeBuffer.Flush();
+                    return writeBuffer.ToArray();
+                }
+                finally
+                {
+                    writeBuffer.Dispose();
+                }
             }
         }
 
         public static async ValueTask EncodeAsync(Stream utf8Stream, {{objectType}} value, CancellationToken cancellationToken = default)
         {
             var writer = PipeWriter.Create(utf8Stream);
-            Encode(ref writer, value);
+            var writeBuffer = new NonRefBufferWriterWriteBuffer<PipeWriter>(writer);
+            try
+            {
+                Encode(ref writeBuffer, value);
+            }
+            finally
+            {
+                writeBuffer.Dispose();
+            }
             await writer.FlushAsync(cancellationToken);
         }
 
-        public static void Encode<TBufferWriter>(ref TBufferWriter bufferWriter, {{objectType}} value)
-            where TBufferWriter : IBufferWriter<byte>
+        public static void Encode<TBufferWriter>(TBufferWriter bufferWriter, {{objectType}} value)
+            where TBufferWriter : class, IBufferWriter<byte>
         {
-            var toonWriter = ToonWriter.Create(ref bufferWriter);
-            Encode(ref toonWriter, value);
-            toonWriter.Flush();
+            var writeBuffer = new NonRefBufferWriterWriteBuffer<TBufferWriter>(bufferWriter);
+            try
+            {
+                var toonWriter = new ToonWriter<NonRefBufferWriterWriteBuffer<TBufferWriter>>(ref writeBuffer);
+                Encode(ref toonWriter, value);
+            }
+            finally
+            {
+                writeBuffer.Dispose();
+            }
         }
 
-        public static void Encode<TBufferWriter>(ref ToonWriter<TBufferWriter> toonWriter, {{objectType}} value)
-            where TBufferWriter : IBufferWriter<byte>
+        public static void Encode<TWriteBuffer>(ref TWriteBuffer writeBuffer, {{objectType}} value)
+            where TWriteBuffer : struct, IWriteBuffer
+        {
+            var toonWriter = new ToonWriter<TWriteBuffer>(ref writeBuffer);
+            Encode(ref toonWriter, value);
+        }
+
+        public static void Encode<TWriteBuffer>(ref ToonWriter<TWriteBuffer> toonWriter, {{objectType}} value)
+            where TWriteBuffer : struct, IWriteBuffer
         {
 {{emitWriteNull}}
 
@@ -415,17 +543,29 @@ namespace Cysharp.AI.Converters
             toonWriter.WriteEndObject();
         }
 
-        public override void Write(Utf8JsonWriter utf8JsonWriter, {{objectType}} value, JsonSerializerOptions options)
+        public override unsafe void Write(Utf8JsonWriter utf8JsonWriter, {{objectType}} value, JsonSerializerOptions options)
         {
-            var bufferWriter = new Cysharp.AI.Internal.ValueArrayPoolBufferWriter<byte>();
-            try
+            Span<byte> buffer = stackalloc byte[256];
+            fixed (byte* p = buffer)
             {
-                Encode(ref bufferWriter, value);
-                utf8JsonWriter.WriteStringValue(bufferWriter.WrittenSpan);
-            }
-            finally
-            {
-                bufferWriter.Dispose();
+                var writeBuffer = new NonRefArrayPoolListWriteBuffer(p, buffer.Length);
+                try
+                {
+                    var toonWriter = new ToonWriter<NonRefArrayPoolListWriteBuffer>(ref writeBuffer);
+                    Encode(ref toonWriter, value);
+                    writeBuffer.Flush();
+
+                    var segments = writeBuffer.GetWrittenSegments();
+                    while (segments.TryGetNext(out var span))
+                    {
+                        utf8JsonWriter.WriteStringValueSegment(span, isFinalSegment: false);
+                    }
+                    utf8JsonWriter.WriteStringValueSegment((ReadOnlySpan<byte>)[], isFinalSegment: true);
+                }
+                finally
+                {
+                    writeBuffer.Dispose();
+                }
             }
         }
 

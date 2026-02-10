@@ -1,16 +1,20 @@
 ﻿using System.Runtime.CompilerServices;
 
-
 namespace Cysharp.AI.Internal;
 
-internal sealed class RefStack<T>
+internal struct RefStack<T>
 {
     T[] array;
     int size = 0;
 
     public int Count => size;
 
-    public RefStack(int initialSize = 4)
+    [Obsolete("This constructor is for serialization only. Use RefStack(int initialSize) instead.", error: true)]
+    public RefStack()
+    {
+    }
+
+    public RefStack(int initialSize)
     {
         array = initialSize == 0 ? Array.Empty<T>() : new T[initialSize];
         size = 0;
@@ -20,7 +24,7 @@ internal sealed class RefStack<T>
     {
         if (size == array.Length)
         {
-            Array.Resize(ref array, array.Length * 2); // I don't care if the stack is not deep enough to overflow.
+            Array.Resize(ref array, Math.Max(4, array.Length * 2)); // I don't care if the stack is not deep enough to overflow.
         }
         array[size++] = value;
     }

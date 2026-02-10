@@ -1,4 +1,4 @@
-﻿using Cysharp.AI.Internal;
+﻿using SerializerFoundation;
 using System.Buffers;
 using System.IO.Pipelines;
 using System.Runtime.InteropServices;
@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Xml.Linq;
 
 namespace Cysharp.AI;
 
@@ -20,52 +21,110 @@ public static partial class ToonEncoder
 
     // Json to Toon
 
-    public static string Encode(JsonElement element)
+    public static unsafe string Encode(JsonElement element)
     {
-        var bufferWriter = new ValueArrayPoolBufferWriter<byte>();
+        Span<byte> buffer = stackalloc byte[256];
+        fixed (byte* p = buffer)
+        {
+            var writeBuffer = new NonRefArrayPoolListWriteBuffer(p, buffer.Length);
+            try
+            {
+                var writer = new ToonWriter<NonRefArrayPoolListWriteBuffer>(ref writeBuffer, Delimiter.Comma);
+                Encode(ref writer, element);
+                writeBuffer.Flush();
+
+                var decoder = Encoding.UTF8.GetDecoder();
+
+                var charCount = 0;
+                var segments = writeBuffer.GetWrittenSegments();
+                while (segments.TryGetNext(out var segment))
+                {
+                    charCount += decoder.GetCharCount(segment, flush: false);
+                }
+                charCount += decoder.GetCharCount([], flush: true);
+
+                var str = string.Create(charCount, (object?)null, (_, __) => { });
+                var destination = MemoryMarshal.CreateSpan(ref MemoryMarshal.GetReference(str.AsSpan()), str.Length);
+
+                decoder.Reset();  // reusing decoder to handling carry-over
+                segments.Reset(); // iterate again
+                while (segments.TryGetNext(out var source))
+                {
+                    var written = decoder.GetChars(source, destination, flush: false);
+                    destination = destination.Slice(written);
+                }
+
+                decoder.GetChars([], destination, flush: true);
+                return str;
+            }
+            finally
+            {
+                writeBuffer.Dispose();
+            }
+        }
+    }
+
+    public static void Encode<TBufferWriter>(TBufferWriter bufferWriter, JsonElement element)
+        where TBufferWriter : class, IBufferWriter<byte>
+    {
+        var writeBuffer = new NonRefBufferWriterWriteBuffer<TBufferWriter>(bufferWriter);
         try
         {
-            Encode(ref bufferWriter, element);
-            return Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
+            var toonWriter = new ToonWriter<NonRefBufferWriterWriteBuffer<TBufferWriter>>(ref writeBuffer, Delimiter.Comma);
+            Encode(ref toonWriter, element);
         }
         finally
         {
-            bufferWriter.Dispose();
+            writeBuffer.Dispose();
         }
     }
 
-    public static void Encode<TBufferWriter>(ref TBufferWriter bufferWriter, JsonElement element)
-        where TBufferWriter : IBufferWriter<byte>
+    public static void Encode<TWriteBuffer>(ref TWriteBuffer writeBuffer, JsonElement element)
+        where TWriteBuffer : struct, IWriteBuffer
     {
-        var toonWriter = ToonWriter.Create(ref bufferWriter);
+        var toonWriter = new ToonWriter<TWriteBuffer>(ref writeBuffer, Delimiter.Comma);
         Encode(ref toonWriter, element);
-        toonWriter.Flush();
     }
 
-    public static void Encode<TBufferWriter>(ref ToonWriter<TBufferWriter> toonWriter, JsonElement element)
-        where TBufferWriter : IBufferWriter<byte>
+    public static void Encode<TWriteBuffer>(ref ToonWriter<TWriteBuffer> toonWriter, JsonElement element)
+        where TWriteBuffer : struct, IWriteBuffer
     {
         WriteElement(ref toonWriter, element);
     }
 
-    public static byte[] EncodeToUtf8Bytes(JsonElement element)
+    public static unsafe byte[] EncodeToUtf8Bytes(JsonElement element)
     {
-        var bufferWriter = new ValueArrayPoolBufferWriter<byte>();
-        try
+        Span<byte> buffer = stackalloc byte[256];
+        fixed (byte* p = buffer)
         {
-            Encode(ref bufferWriter, element);
-            return bufferWriter.WrittenSpan.ToArray();
-        }
-        finally
-        {
-            bufferWriter.Dispose();
+            var writeBuffer = new NonRefArrayPoolListWriteBuffer(p, buffer.Length);
+            try
+            {
+                var toonWriter = new ToonWriter<NonRefArrayPoolListWriteBuffer>(ref writeBuffer, Delimiter.Comma);
+                Encode(ref toonWriter, element);
+                writeBuffer.Flush();
+
+                return writeBuffer.ToArray();
+            }
+            finally
+            {
+                writeBuffer.Dispose();
+            }
         }
     }
 
     public static async ValueTask EncodeAsync(Stream utf8Stream, JsonElement element, CancellationToken cancellationToken = default)
     {
         var writer = PipeWriter.Create(utf8Stream);
-        Encode(ref writer, element);
+        var writeBuffer = new NonRefBufferWriterWriteBuffer<PipeWriter>(writer);
+        try
+        {
+            Encode(ref writeBuffer, element);
+        }
+        finally
+        {
+            writeBuffer.Dispose();
+        }
         await writer.FlushAsync(cancellationToken);
     }
 
@@ -80,17 +139,46 @@ public static partial class ToonEncoder
     /// property names in the same order.</param>
     /// <exception cref="ArgumentException">Thrown if the provided JsonElement is not an array, if any element in the array is not an object, if objects
     /// have differing property names or counts, or if any property value is not a Toon primitive.</exception>
-    public static string EncodeAsTabularArray(JsonElement array)
+    public static unsafe string EncodeAsTabularArray(JsonElement array)
     {
-        var bufferWriter = new ValueArrayPoolBufferWriter<byte>();
-        try
+        Span<byte> buffer = stackalloc byte[256];
+        fixed (byte* p = buffer)
         {
-            EncodeAsTabularArray(ref bufferWriter, array);
-            return Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
-        }
-        finally
-        {
-            bufferWriter.Dispose();
+            var writeBuffer = new NonRefArrayPoolListWriteBuffer(p, buffer.Length);
+            try
+            {
+                var writer = new ToonWriter<NonRefArrayPoolListWriteBuffer>(ref writeBuffer, Delimiter.Comma);
+                EncodeAsTabularArray(ref writer, array);
+                writeBuffer.Flush();
+
+                var decoder = Encoding.UTF8.GetDecoder();
+
+                var charCount = 0;
+                var segments = writeBuffer.GetWrittenSegments();
+                while (segments.TryGetNext(out var segment))
+                {
+                    charCount += decoder.GetCharCount(segment, flush: false);
+                }
+                charCount += decoder.GetCharCount([], flush: true);
+
+                var str = string.Create(charCount, (object?)null, (_, __) => { });
+                var destination = MemoryMarshal.CreateSpan(ref MemoryMarshal.GetReference(str.AsSpan()), str.Length);
+
+                decoder.Reset();  // reusing decoder to handling carry-over
+                segments.Reset(); // iterate again
+                while (segments.TryGetNext(out var source))
+                {
+                    var written = decoder.GetChars(source, destination, flush: false);
+                    destination = destination.Slice(written);
+                }
+
+                decoder.GetChars([], destination, flush: true);
+                return str;
+            }
+            finally
+            {
+                writeBuffer.Dispose();
+            }
         }
     }
 
@@ -103,12 +191,35 @@ public static partial class ToonEncoder
     /// property names in the same order.</param>
     /// <exception cref="ArgumentException">Thrown if the provided JsonElement is not an array, if any element in the array is not an object, if objects
     /// have differing property names or counts, or if any property value is not a Toon primitive.</exception>
-    public static void EncodeAsTabularArray<TBufferWriter>(ref TBufferWriter bufferWriter, JsonElement array)
-        where TBufferWriter : IBufferWriter<byte>
+    public static void EncodeAsTabularArray<TBufferWriter>(TBufferWriter bufferWriter, JsonElement array)
+        where TBufferWriter : class, IBufferWriter<byte>
     {
-        var toonWriter = ToonWriter.Create(ref bufferWriter);
+        var writeBuffer = new NonRefBufferWriterWriteBuffer<TBufferWriter>(bufferWriter);
+        try
+        {
+            var toonWriter = new ToonWriter<NonRefBufferWriterWriteBuffer<TBufferWriter>>(ref writeBuffer, Delimiter.Comma);
+            EncodeAsTabularArray(ref toonWriter, array);
+        }
+        finally
+        {
+            writeBuffer.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Encodes a JSON array of objects as a tabular array.
+    /// </summary>
+    /// <remarks>All objects in the input array must have identical property names in the same order, and all
+    /// property values must be Toon primitive types.</remarks>
+    /// <param name="array">A JsonElement representing an array of objects to encode as a tabular array. Each object must have the same
+    /// property names in the same order.</param>
+    /// <exception cref="ArgumentException">Thrown if the provided JsonElement is not an array, if any element in the array is not an object, if objects
+    /// have differing property names or counts, or if any property value is not a Toon primitive.</exception>
+    public static void EncodeAsTabularArray<TWriteBuffer>(ref TWriteBuffer writeBuffer, JsonElement array)
+        where TWriteBuffer : struct, IWriteBuffer
+    {
+        var toonWriter = new ToonWriter<TWriteBuffer>(ref writeBuffer, Delimiter.Comma);
         EncodeAsTabularArray(ref toonWriter, array);
-        toonWriter.Flush();
     }
 
     /// <summary>
@@ -120,17 +231,22 @@ public static partial class ToonEncoder
     /// property names in the same order.</param>
     /// <exception cref="ArgumentException">Thrown if the provided JsonElement is not an array, if any element in the array is not an object, if objects
     /// have differing property names or counts, or if any property value is not a Toon primitive.</exception>
-    public static byte[] EncodeAsTabularArrayToUtf8Bytes(JsonElement array)
+    public static unsafe byte[] EncodeAsTabularArrayToUtf8Bytes(JsonElement array)
     {
-        var bufferWriter = new ValueArrayPoolBufferWriter<byte>();
-        try
+        Span<byte> buffer = stackalloc byte[256];
+        fixed (byte* p = buffer)
         {
-            EncodeAsTabularArray(ref bufferWriter, array);
-            return bufferWriter.WrittenSpan.ToArray();
-        }
-        finally
-        {
-            bufferWriter.Dispose();
+            var writeBuffer = new NonRefArrayPoolListWriteBuffer(p, buffer.Length);
+            try
+            {
+                EncodeAsTabularArray(ref writeBuffer, array);
+                writeBuffer.Flush();
+                return writeBuffer.ToArray();
+            }
+            finally
+            {
+                writeBuffer.Dispose();
+            }
         }
     }
 
@@ -146,7 +262,15 @@ public static partial class ToonEncoder
     public static async ValueTask EncodeAsTabularArrayAsync(Stream utf8Stream, JsonElement array, CancellationToken cancellationToken = default)
     {
         var writer = PipeWriter.Create(utf8Stream);
-        EncodeAsTabularArray(ref writer, array);
+        var writeBuffer = new NonRefBufferWriterWriteBuffer<PipeWriter>(writer);
+        try
+        {
+            EncodeAsTabularArray(ref writeBuffer, array);
+        }
+        finally
+        {
+            writeBuffer.Dispose();
+        }
         await writer.FlushAsync(cancellationToken);
     }
 
@@ -156,14 +280,13 @@ public static partial class ToonEncoder
     /// <remarks>All objects in the input array must have identical property names in the same order, and all
     /// property values must be Toon primitive types. The method writes the tabular array structure to the provided
     /// ToonWriter and flushes the writer upon completion.</remarks>
-    /// <typeparam name="TBufferWriter">The type of buffer writer used by the ToonWriter to write encoded bytes.</typeparam>
     /// <param name="toonWriter">The ToonWriter instance that receives the encoded tabular array data.</param>
     /// <param name="array">A JsonElement representing an array of objects to encode as a tabular array. Each object must have the same
     /// property names in the same order.</param>
     /// <exception cref="ArgumentException">Thrown if the provided JsonElement is not an array, if any element in the array is not an object, if objects
     /// have differing property names or counts, or if any property value is not a Toon primitive.</exception>
-    public static void EncodeAsTabularArray<TBufferWriter>(ref ToonWriter<TBufferWriter> toonWriter, JsonElement array)
-        where TBufferWriter : IBufferWriter<byte>
+    public static void EncodeAsTabularArray<TWriteBuffer>(ref ToonWriter<TWriteBuffer> toonWriter, JsonElement array)
+        where TWriteBuffer : struct, IWriteBuffer
     {
         if (array.ValueKind != JsonValueKind.Array)
         {

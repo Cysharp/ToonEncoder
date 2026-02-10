@@ -1,4 +1,5 @@
-﻿using System.Buffers;
+﻿using SerializerFoundation;
+using System.Buffers;
 using System.Text.Json;
 
 namespace Cysharp.AI;
@@ -15,12 +16,12 @@ partial class ToonEncoder
         return Encode(document.RootElement);
     }
 
-    public static void Encode<TBufferWriter, T>(ref TBufferWriter bufferWriter, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
-        where TBufferWriter : IBufferWriter<byte>
+    public static void Encode<TWriteBuffer, T>(ref TWriteBuffer writeBuffer, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
+        where TWriteBuffer : struct, IWriteBuffer
     {
         jsonSerializerOptionsWithoutToonConverter ??= RecommendJsonSerializerOptions;
         using var document = JsonSerializer.SerializeToDocument(value, jsonSerializerOptionsWithoutToonConverter);
-        Encode(ref bufferWriter, document.RootElement);
+        Encode(ref writeBuffer, document.RootElement);
     }
 
     public static async ValueTask EncodeAsync<T>(Stream utf8Stream, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default, CancellationToken cancellationToken = default)
@@ -30,8 +31,8 @@ partial class ToonEncoder
         await EncodeAsync(utf8Stream, document.RootElement, cancellationToken);
     }
 
-    public static void Encode<TBufferWriter, T>(ref ToonWriter<TBufferWriter> toonWriter, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
-        where TBufferWriter : IBufferWriter<byte>
+    public static void Encode<TWriteBuffer, T>(ref ToonWriter<TWriteBuffer> toonWriter, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
+        where TWriteBuffer : struct, IWriteBuffer
     {
         jsonSerializerOptionsWithoutToonConverter ??= RecommendJsonSerializerOptions;
         using var document = JsonSerializer.SerializeToDocument(value, jsonSerializerOptionsWithoutToonConverter);
@@ -54,12 +55,12 @@ partial class ToonEncoder
         return EncodeAsTabularArray(document.RootElement);
     }
 
-    public static void EncodeAsTabularArray<TBufferWriter, T>(ref TBufferWriter bufferWriter, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
-        where TBufferWriter : IBufferWriter<byte>
+    public static void EncodeAsTabularArray<TWriteBuffer, T>(ref TWriteBuffer writeBuffer, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
+        where TWriteBuffer : struct, IWriteBuffer
     {
         jsonSerializerOptionsWithoutToonConverter ??= RecommendJsonSerializerOptions;
         using var document = JsonSerializer.SerializeToDocument(value, jsonSerializerOptionsWithoutToonConverter);
-        EncodeAsTabularArray(ref bufferWriter, document.RootElement);
+        EncodeAsTabularArray(ref writeBuffer, document.RootElement);
     }
 
     public static async ValueTask EncodeAsTabularArrayAsync<T>(Stream utf8Stream, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default, CancellationToken cancellationToken = default)
@@ -69,8 +70,8 @@ partial class ToonEncoder
         await EncodeAsTabularArrayAsync(utf8Stream, document.RootElement, cancellationToken);
     }
 
-    public static void EncodeAsTabularArray<TBufferWriter, T>(ref ToonWriter<TBufferWriter> toonWriter, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
-        where TBufferWriter : IBufferWriter<byte>
+    public static void EncodeAsTabularArray<TWriteBuffer, T>(ref ToonWriter<TWriteBuffer> toonWriter, T value, JsonSerializerOptions? jsonSerializerOptionsWithoutToonConverter = default)
+        where TWriteBuffer : struct, IWriteBuffer
     {
         jsonSerializerOptionsWithoutToonConverter ??= RecommendJsonSerializerOptions;
         using var document = JsonSerializer.SerializeToDocument(value, jsonSerializerOptionsWithoutToonConverter);

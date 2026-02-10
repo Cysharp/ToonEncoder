@@ -1,13 +1,40 @@
 ﻿using Cysharp.AI;
+using SerializerFoundation;
+using System.Buffers;
+using System.IO.Pipelines;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Xml.Linq;
 
 var item = new Item { Status = "OK", Users = [new(1, "Alice", "Admin"), new(2, "Bob", "User")] };
 
 var toon = Cysharp.AI.Converters.ItemSimpleObjectConverter.Encode(item);
 
+var jsonSerializerOptions = new JsonSerializerOptions
+{
+    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    WriteIndented = false,
+    DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+    Converters =
+    {
+        // setup generated converter
+        new Cysharp.AI.Converters.ItemSimpleObjectConverter(),
+    }
+};
+jsonSerializerOptions.MakeReadOnly(true);
+
+var foo = JsonSerializer.Serialize(item, jsonSerializerOptions);
+
 // Status: OK
 // Users[2]{Id,Name,Role}:
 //   1,Alice,Admin
 //   2,Bob,User
+Console.WriteLine(foo);
+Console.WriteLine("---");
 Console.WriteLine(toon);
 
 [GenerateToonSimpleObjectConverter]
@@ -43,3 +70,4 @@ class User2
 {
     public List<int>? MyProperty2 { get; set; }
 }
+

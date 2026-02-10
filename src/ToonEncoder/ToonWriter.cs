@@ -1,4 +1,5 @@
 ﻿using Cysharp.AI.Internal;
+using SerializerFoundation;
 using System;
 using System.Buffers;
 using System.Buffers.Text;
@@ -9,21 +10,6 @@ using System.Text;
 using System.Text.Unicode;
 
 namespace Cysharp.AI;
-
-public static class ToonWriter
-{
-    public static ToonWriter<TBufferWriter> Create<TBufferWriter>(ref TBufferWriter bufferWriter)
-        where TBufferWriter : IBufferWriter<byte>
-    {
-        return new ToonWriter<TBufferWriter>(ref bufferWriter, Delimiter.Comma); // Comma is default
-    }
-
-    public static ToonWriter<TBufferWriter> Create<TBufferWriter>(ref TBufferWriter bufferWriter, Delimiter delimiter)
-        where TBufferWriter : IBufferWriter<byte>
-    {
-        return new ToonWriter<TBufferWriter>(ref bufferWriter, delimiter);
-    }
-}
 
 public enum Delimiter
 {
@@ -85,24 +71,27 @@ internal enum QuoteScope
     None, ObjectKey, InArray
 }
 
-public ref partial struct ToonWriter<TBufferWriter>
-    where TBufferWriter : IBufferWriter<byte>
+public ref partial struct ToonWriter<TWriteBuffer>
+    where TWriteBuffer : struct, IWriteBuffer
 {
-    Span<byte> buffer;
-    ref TBufferWriter bufferWriter;
+    ref TWriteBuffer writeBuffer;
+    readonly byte delimiter;
 
-    int written;
-    int totalWritten;
-    RefStack<DepthState> currentState = new(); // in-object / in-array
+    RefStack<DepthState> currentState = new(0); // in-object / in-array
 
-    public int BytesCommitted => totalWritten;
-    public int BytesPending => written;
-    public Delimiter Delimiter { get; }
+    public long BytesWritten => writeBuffer.BytesWritten;
+    public Delimiter Delimiter => (Delimiter)delimiter;
 
-    public ToonWriter(ref TBufferWriter bufferWriter, Delimiter delimiter)
+    public ToonWriter(ref TWriteBuffer writeBuffer)
     {
-        this.bufferWriter = ref bufferWriter;
-        this.Delimiter = delimiter;
+        this.writeBuffer = ref writeBuffer;
+        this.delimiter = (byte)Delimiter.Comma;
+    }
+
+    public ToonWriter(ref TWriteBuffer writeBuffer, Delimiter delimiter)
+    {
+        this.writeBuffer = ref writeBuffer;
+        this.delimiter = (byte)delimiter;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -162,10 +151,9 @@ public ref partial struct ToonWriter<TBufferWriter>
         TryWriteKeyValueSeparator();
         WriteDelimiter();
 
-        EnsureBuffer(36);
+        var buffer = writeBuffer.GetSpan(36);
         Utf8Formatter.TryFormat(value, buffer, out var bytesWritten);
-        buffer = buffer.Slice(bytesWritten);
-        written += bytesWritten;
+        writeBuffer.Advance(bytesWritten);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -174,10 +162,9 @@ public ref partial struct ToonWriter<TBufferWriter>
         TryWriteKeyValueSeparator();
         WriteDelimiter();
 
-        EnsureBuffer(33);
+        var buffer = writeBuffer.GetSpan(33);
         Utf8Formatter.TryFormat(value, buffer, out var bytesWritten, new StandardFormat('O'));
-        buffer = buffer.Slice(bytesWritten);
-        written += bytesWritten;
+        writeBuffer.Advance(bytesWritten);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -186,10 +173,9 @@ public ref partial struct ToonWriter<TBufferWriter>
         TryWriteKeyValueSeparator();
         WriteDelimiter();
 
-        EnsureBuffer(33);
+        var buffer = writeBuffer.GetSpan(33);
         Utf8Formatter.TryFormat(value, buffer, out var bytesWritten, new StandardFormat('O'));
-        buffer = buffer.Slice(bytesWritten);
-        written += bytesWritten;
+        writeBuffer.Advance(bytesWritten);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -198,10 +184,9 @@ public ref partial struct ToonWriter<TBufferWriter>
         TryWriteKeyValueSeparator();
         WriteDelimiter();
 
-        EnsureBuffer(8);
-        Utf8Formatter.TryFormat(value, buffer, out var bytesWritten);
-        buffer = buffer.Slice(bytesWritten);
-        written += bytesWritten;
+        var buffer = writeBuffer.GetSpan(8);
+        Utf8Formatter.TryFormat(value, buffer, out var bytesWritten, new StandardFormat('O'));
+        writeBuffer.Advance(bytesWritten);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -253,19 +238,19 @@ public ref partial struct ToonWriter<TBufferWriter>
     void FormatInt64(long value)
     {
         const int MaxLength = 20; // -9223372036854775808
-        EnsureBuffer(MaxLength);
+
+        var buffer = writeBuffer.GetSpan(MaxLength);
         Utf8Formatter.TryFormat(value, buffer, out var bytesWritten);
-        buffer = buffer.Slice(bytesWritten);
-        written += bytesWritten;
+        writeBuffer.Advance(bytesWritten);
     }
 
     void FormatUInt64(ulong value)
     {
         const int MaxLength = 20; // 18446744073709551615
-        EnsureBuffer(MaxLength);
+
+        var buffer = writeBuffer.GetSpan(MaxLength);
         Utf8Formatter.TryFormat(value, buffer, out var bytesWritten);
-        buffer = buffer.Slice(bytesWritten);
-        written += bytesWritten;
+        writeBuffer.Advance(bytesWritten);
     }
 
     void FormatDouble(double value)
@@ -278,31 +263,20 @@ public ref partial struct ToonWriter<TBufferWriter>
         }
 
         const int MaxLength = 32;
-        EnsureBuffer(MaxLength);
+
+        var buffer = writeBuffer.GetSpan(MaxLength);
         Utf8Formatter.TryFormat(value, buffer, out var bytesWritten);
-        buffer = buffer.Slice(bytesWritten);
-        written += bytesWritten;
+        writeBuffer.Advance(bytesWritten);
     }
 
     void FormatDecimal(decimal value)
     {
         // decimal max: -79228162514264337593543950335 (30 chars with sign and decimal point)
         const int MaxLength = 31;
-        EnsureBuffer(MaxLength);
-        Utf8Formatter.TryFormat(value, buffer, out var bytesWritten);
-        buffer = buffer.Slice(bytesWritten);
-        written += bytesWritten;
-    }
 
-    public void Flush()
-    {
-        if (written > 0)
-        {
-            bufferWriter.Advance(written);
-            totalWritten += written;
-            written = 0;
-            buffer = default;
-        }
+        var buffer = writeBuffer.GetSpan(MaxLength);
+        Utf8Formatter.TryFormat(value, buffer, out var bytesWritten);
+        writeBuffer.Advance(bytesWritten);
     }
 
     void WriteUtf16String(ReadOnlySpan<char> value, QuoteScope quoteScope)
@@ -463,10 +437,7 @@ public ref partial struct ToonWriter<TBufferWriter>
     {
         while (value.Length > 0)
         {
-            if (buffer.Length == 0)
-            {
-                EnsureBuffer(Math.Max(value.Length * 3, 256));
-            }
+            var buffer = writeBuffer.GetSpan(value.Length * 3);
 
             var status = Utf8.FromUtf16(value, buffer, out var charsRead, out var bytesWritten);
 
@@ -476,8 +447,7 @@ public ref partial struct ToonWriter<TBufferWriter>
             }
 
             value = value.Slice(charsRead);
-            buffer = buffer.Slice(bytesWritten);
-            written += bytesWritten;
+            writeBuffer.Advance(bytesWritten);
         }
     }
 
@@ -501,40 +471,17 @@ public ref partial struct ToonWriter<TBufferWriter>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     void WriteRaw(ReadOnlySpan<byte> value)
     {
-        EnsureBuffer(value.Length);
-        value.CopyTo(buffer);
-        buffer = buffer.Slice(value.Length);
-        written += value.Length;
+        var span = writeBuffer.GetSpan(value.Length);
+        value.CopyTo(span);
+        writeBuffer.Advance(value.Length);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     void WriteRaw(byte value)
     {
-        EnsureBuffer(1);
-        buffer[0] = value;
-        buffer = buffer.Slice(1);
-        written += 1;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    void EnsureBuffer(int size)
-    {
-        if (buffer.Length < size)
-        {
-            GetNewBuffer(size);
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    void GetNewBuffer(int size)
-    {
-        if (written > 0)
-        {
-            bufferWriter.Advance(written);
-            totalWritten += written;
-        }
-        buffer = bufferWriter.GetSpan(size);
-        written = 0;
+        ref var reference = ref writeBuffer.GetReference(1);
+        reference = value;
+        writeBuffer.Advance(1);
     }
 
     [DoesNotReturn]

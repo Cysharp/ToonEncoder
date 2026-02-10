@@ -1,4 +1,5 @@
 ﻿using Cysharp.AI;
+using SerializerFoundation;
 using System.Buffers;
 using System.Text;
 using System.Text.Json;
@@ -105,10 +106,11 @@ public class FixtureTest
         var delimiter = (Delimiter)(byte)new Rune(delimiterString).Value;
 
         var bufferWriter = new ArrayBufferWriter<byte>();
-        var toonWriter = ToonWriter.Create(ref bufferWriter, delimiter);
+        var writeBuffer = new NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>(bufferWriter);
+        var toonWriter = new ToonWriter<NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>>(ref writeBuffer, delimiter);
 
         Cysharp.AI.ToonEncoder.Encode(ref toonWriter, testData.Fixture.Input);
-        toonWriter.Flush();
+        writeBuffer.Flush();
 
         var toon = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
         await Assert.That(toon).IsEqualTo(testData.Fixture.Expected);

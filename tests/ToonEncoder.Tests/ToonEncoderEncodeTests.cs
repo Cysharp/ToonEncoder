@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using Cysharp.AI;
+using SerializerFoundation;
 using TUnit.Core;
 
 namespace ToonEncoder.Tests;
@@ -27,9 +28,9 @@ public class ToonEncoderEncodeTests
     {
         var element = CreateSampleElement();
         var bufferWriter = new ArrayBufferWriter<byte>();
-
-        Cysharp.AI.ToonEncoder.Encode(ref bufferWriter, element);
-
+        var writeBuffer = new NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>(bufferWriter);
+        Cysharp.AI.ToonEncoder.Encode(ref writeBuffer, element);
+        writeBuffer.Flush();
         var result = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
         await Assert.That(result).IsEqualTo(ExpectedToon);
     }
@@ -51,10 +52,12 @@ public class ToonEncoderEncodeTests
     {
         var element = CreateSampleElement();
         var bufferWriter = new ArrayBufferWriter<byte>();
-        var toonWriter = ToonWriter.Create(ref bufferWriter);
+        var writeBuffer = new NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>(bufferWriter);
+
+        var toonWriter = new ToonWriter<NonRefBufferWriterWriteBuffer<ArrayBufferWriter<byte>>>(ref writeBuffer);
 
         Cysharp.AI.ToonEncoder.Encode(ref toonWriter, element);
-        toonWriter.Flush();
+        writeBuffer.Flush();
 
         var result = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
         await Assert.That(result).IsEqualTo(ExpectedToon);

@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace Cysharp.AI;
 
-partial struct ToonWriter<TBufferWriter>
+partial struct ToonWriter<TWriteBuffer>
 {
     public void WriteStartObject()
     {
