@@ -62,6 +62,9 @@ string toon3 = Cysharp.AI.Converters.UserTabularArrayConverter.EncodeAsTabularAr
 // If data can be uniform array, generate converter for better performance
 [GenerateToonTabularArrayConverter]
 public record User(int Id, string Name, string Role);
+
+// Note: when using Source Generator, you need to allow unsafe comple.
+// <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 ```
 
 The Source Generator also supports generation for flat objects (primitives, arrays of primitive elements, and arrays of objects consisting only of primitive elements). `[GenerateToonSimpleObjectConverter]` handles scenarios like TabularArray + additional metadata.
