@@ -74,12 +74,28 @@ static partial class ToonEncoder
 
                         toonWriter.WriteStartTabularArray(length, fieldNames.Select(x => (ReadOnlyMemory<byte>)x.Name.AsMemory()), escaped: true);
                         var orderedProperties = new JsonProperty[fieldNames.Count];
+#if NETSTANDARD2_0
+                        var fieldNamesArray = fieldNames.ToArray();
+#else
                         var nameLookup = fieldNames.GetAlternateLookup<ReadOnlySpan<byte>>();
+#endif
                         foreach (var item in enumerator)
                         {
                             toonWriter.WriteNextRowOfTabularArray();
                             foreach (var value in item.EnumerateObject())
                             {
+#if NETSTANDARD2_0
+                                var name = JsonMarshal.GetRawUtf8PropertyName(value).ToArray();
+                                var keyIndex = Array.FindIndex(fieldNamesArray, f => SpanEquals(f.Name, name));
+                                if (keyIndex >= 0 && IsToonPrimitive(value.Value.ValueKind))
+                                {
+                                    orderedProperties[keyIndex] = value;
+                                }
+                                else
+                                {
+                                    throw new InvalidOperationException("This should not happen.");
+                                }
+#else
                                 if (nameLookup.TryGetValue(JsonMarshal.GetRawUtf8PropertyName(value), out var key))
                                 {
                                     orderedProperties[key.Index] = value;
@@ -88,6 +104,7 @@ static partial class ToonEncoder
                                 {
                                     throw new InvalidOperationException("This should not happen.");
                                 }
+#endif
                             }
 
                             foreach (var jsonProperty in orderedProperties)
@@ -196,7 +213,11 @@ static partial class ToonEncoder
             // first-one
             if (names == null)
             {
+#if NETSTANDARD2_0
+                names = new HashSet<ArraysOfObjectsKey>();
+#else
                 names = new(4, comparer: ArraysOfObjectsKeyAlternateEqualityComparer.Default);
+#endif
                 var findIndex = 0;
                 foreach (var value in item.EnumerateObject())
                 {
@@ -213,7 +234,11 @@ static partial class ToonEncoder
             }
 
             var nameIndex = 0;
+#if NETSTANDARD2_0
+            var namesArray = names.ToArray();
+#else
             var namesLookup = names.GetAlternateLookup<ReadOnlySpan<byte>>();
+#endif
             foreach (var value in item.EnumerateObject())
             {
                 if (nameIndex >= names.Count)
@@ -222,7 +247,11 @@ static partial class ToonEncoder
                     return false;
                 }
 
+#if NETSTANDARD2_0
+                if (IsToonPrimitive(value.Value.ValueKind) && TryFindKey(namesArray, JsonMarshal.GetRawUtf8PropertyName(value), out _))
+#else
                 if (namesLookup.TryGetValue(JsonMarshal.GetRawUtf8PropertyName(value), out var nameKey) && IsToonPrimitive(value.Value.ValueKind))
+#endif
                 {
                     nameIndex++;
                     continue;
@@ -241,12 +270,17 @@ static partial class ToonEncoder
             length++;
         }
 
+#if NETSTANDARD2_0
+        fieldNames = names ?? new HashSet<ArraysOfObjectsKey>();
+#else
         fieldNames = names ?? new(1);
+#endif
         return true;
     }
 
     record struct ArraysOfObjectsKey(int Index, byte[] Name);
 
+#if !NETSTANDARD2_0
     // Alternate is "Name"(UTF-8 slice)
     class ArraysOfObjectsKeyAlternateEqualityComparer : IEqualityComparer<ArraysOfObjectsKey>, IAlternateEqualityComparer<ReadOnlySpan<byte>, ArraysOfObjectsKey>
     {
@@ -281,5 +315,26 @@ static partial class ToonEncoder
             // System.IO.Hashing package, cast to int is safe for hashing
             return unchecked((int)XxHash3.HashToUInt64(alternate));
         }
+    }
+#endif
+
+    static bool SpanEquals(byte[] left, ReadOnlySpan<byte> right)
+    {
+        return left.AsSpan().SequenceEqual(right);
+    }
+
+    static bool TryFindKey(ArraysOfObjectsKey[] keys, ReadOnlySpan<byte> name, out ArraysOfObjectsKey key)
+    {
+        for (int i = 0; i < keys.Length; i++)
+        {
+           if (keys[i].Name.AsSpan().SequenceEqual(name))
+           {
+               key = keys[i];
+               return true;
+           }
+        }
+
+        key = default;
+        return false;
     }
 }

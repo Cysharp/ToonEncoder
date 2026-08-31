@@ -1,4 +1,4 @@
-﻿using SerializerFoundation;
+using SerializerFoundation;
 using System.Buffers;
 using System.IO.Pipelines;
 using System.Runtime.InteropServices;
@@ -33,6 +33,23 @@ public static partial class ToonEncoder
                 Encode(ref writer, element);
                 writeBuffer.Flush();
 
+#if NETSTANDARD2_0
+                var decoder = Encoding.UTF8.GetDecoder();
+                var builder = new StringBuilder();
+                var segments = writeBuffer.GetWrittenSegments();
+                while (segments.TryGetNext(out var segment))
+                {
+                    var source = segment.ToArray();
+                    var chars = new char[decoder.GetCharCount(source, 0, source.Length, flush: false)];
+                    var charsWritten = decoder.GetChars(source, 0, source.Length, chars, 0, flush: false);
+                    builder.Append(chars, 0, charsWritten);
+                }
+
+                var finalChars = new char[decoder.GetCharCount(Array.Empty<byte>(), 0, 0, flush: true)];
+                var finalCharsWritten = decoder.GetChars(Array.Empty<byte>(), 0, 0, finalChars, 0, flush: true);
+                builder.Append(finalChars, 0, finalCharsWritten);
+                return builder.ToString();
+#else
                 var decoder = Encoding.UTF8.GetDecoder();
 
                 var charCount = 0;
@@ -56,6 +73,7 @@ public static partial class ToonEncoder
 
                 decoder.GetChars([], destination, flush: true);
                 return str;
+#endif
             }
             finally
             {
@@ -151,6 +169,23 @@ public static partial class ToonEncoder
                 EncodeAsTabularArray(ref writer, array);
                 writeBuffer.Flush();
 
+#if NETSTANDARD2_0
+                var decoder = Encoding.UTF8.GetDecoder();
+                var builder = new StringBuilder();
+                var segments = writeBuffer.GetWrittenSegments();
+                while (segments.TryGetNext(out var segment))
+                {
+                    var source = segment.ToArray();
+                    var chars = new char[decoder.GetCharCount(source, 0, source.Length, flush: false)];
+                    var charsWritten = decoder.GetChars(source, 0, source.Length, chars, 0, flush: false);
+                    builder.Append(chars, 0, charsWritten);
+                }
+
+                var finalChars = new char[decoder.GetCharCount(Array.Empty<byte>(), 0, 0, flush: true)];
+                var finalCharsWritten = decoder.GetChars(Array.Empty<byte>(), 0, 0, finalChars, 0, flush: true);
+                builder.Append(finalChars, 0, finalCharsWritten);
+                return builder.ToString();
+#else
                 var decoder = Encoding.UTF8.GetDecoder();
 
                 var charCount = 0;
@@ -174,6 +209,7 @@ public static partial class ToonEncoder
 
                 decoder.GetChars([], destination, flush: true);
                 return str;
+#endif
             }
             finally
             {

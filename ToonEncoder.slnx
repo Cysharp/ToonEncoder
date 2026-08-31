@@ -18,6 +18,7 @@
     <Project Path="src/ToonEncoder/ToonEncoder.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/NetStandard20Consumer/NetStandard20Consumer.csproj" />
     <Project Path="tests/ToonEncoder.Tests/ToonEncoder.Tests.csproj" />
   </Folder>
 </Solution>

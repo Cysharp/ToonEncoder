@@ -21,6 +21,15 @@ A `JsonConverter<T>` is provided for seamless integration with [Microsoft.Extens
 
 This library was developed as part of [CompilerBrain](https://github.com/Cysharp/CompilerBrain), a C# Agent I am building. Since its purpose is to efficiently provide data to LLMs, this library only provides an encoder. Additionally, encoder options for changing indent size and folding are not implemented.
 
+## Target frameworks
+
+The runtime package supports `netstandard2.0` and `net10.0`.
+
+- `netstandard2.0` is a compatibility-focused target for legacy consumers. It uses safe fallback implementations for APIs unavailable on older BCLs.
+- `net10.0` is the optimized target and retains modern BCL-based fast paths.
+
+The bundled source generator remains available from the package analyzer assets for supported consuming projects.
+
 ## Getting Started
 
 This library is distributed via [NuGet](https://www.nuget.org/packages/ToonEncoder), minimal requirement is .NET 10.

@@ -18,6 +18,12 @@ jobs:
     steps:
       - uses: Cysharp/Actions/.github/actions/checkout@main
       - uses: Cysharp/Actions/.github/actions/setup-dotnet@main
+      - run: dotnet build src/ToonEncoder/ToonEncoder.csproj -c Release -f netstandard2.0
+      - run: dotnet build src/ToonEncoder/ToonEncoder.csproj -c Release -f net10.0
       - run: dotnet build -c Release
       - run: dotnet test -c Release --no-build
-      - run: dotnet pack -c Release --no-build -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg -o $GITHUB_WORKSPACE/artifacts
+      - run: dotnet pack src/ToonEncoder/ToonEncoder.csproj -c Release --no-build -p:PackageVersion=1.0.0-local -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg -o $GITHUB_WORKSPACE/artifacts
+      - run: dotnet restore tests/NetStandard20Consumer/NetStandard20Consumer.csproj --source "$GITHUB_WORKSPACE/artifacts;https://api.nuget.org/v3/index.json"
+      - run: dotnet run --project tests/NetStandard20Consumer/NetStandard20Consumer.csproj --no-restore
+      - run: dotnet restore tests/NetStandard20Consumer/NetStandard20Consumer.csproj -p:UseLegacyRuntime=true --source "$GITHUB_WORKSPACE/artifacts;https://api.nuget.org/v3/index.json"
+      - run: dotnet run --project tests/NetStandard20Consumer/NetStandard20Consumer.csproj -p:UseLegacyRuntime=true --no-restore

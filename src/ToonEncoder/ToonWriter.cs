@@ -1,4 +1,6 @@
-﻿using Cysharp.AI.Internal;
+using Cysharp.AI.Internal;
+using Cysharp.AI.Internal.Compatibility;
+using CompatibilitySearchValues = Cysharp.AI.Internal.Compatibility.ToonSearchValues;
 using SerializerFoundation;
 using System;
 using System.Buffers;
@@ -42,30 +44,23 @@ internal struct DepthState
 
 internal static class ToonSearchValues
 {
-    // for quote and escape checks
-
-    public static readonly SearchValues<char> CommaUtf16NeedQuoteCharsInArray = SearchValues.Create(",:\"\\{}[]()\n\r\t");
-    public static readonly SearchValues<char> CommaUtf16NeedQuoteCharsObjectKey = SearchValues.Create(" ,:\"\\{}[]()\n\r\t");
-    public static readonly SearchValues<byte> CommaUtf8NeedQuoteCharsInArray = SearchValues.Create(",:\"\\{}[]()\n\r\t"u8);
-    public static readonly SearchValues<byte> CommaUtf8NeedQuoteCharsObjectKey = SearchValues.Create(" ,:\"\\{}[]()\n\r\t"u8);
-
-    public static readonly SearchValues<char> PipeUtf16NeedQuoteCharsInArray = SearchValues.Create("|:\"\\{}[]()\n\r\t");
-    public static readonly SearchValues<char> PipeUtf16NeedQuoteCharsObjectKey = SearchValues.Create(" |:\"\\{}[]()\n\r\t");
-    public static readonly SearchValues<byte> PipeUtf8NeedQuoteCharsInArray = SearchValues.Create("|:\"\\{}[]()\n\r\t"u8);
-    public static readonly SearchValues<byte> PipeUtf8NeedQuoteCharsObjectKey = SearchValues.Create(" |:\"\\{}[]()\n\r\t"u8);
-
-    public static readonly SearchValues<char> TabUtf16NeedQuoteCharsInArray = SearchValues.Create(":\"\\{}[]()\n\r\t");
-    public static readonly SearchValues<char> TabUtf16NeedQuoteCharsObjectKey = SearchValues.Create(" :\"\\{}[]()\n\r\t");
-    public static readonly SearchValues<byte> TabUtf8NeedQuoteCharsInArray = SearchValues.Create(":\"\\{}[]()\n\r\t"u8);
-    public static readonly SearchValues<byte> TabUtf8NeedQuoteCharsObjectKey = SearchValues.Create(" :\"\\{}[]()\n\r\t"u8);
-
-    public static readonly SearchValues<char> Utf16NeedQuoteChars = SearchValues.Create(":\"\\{}[]()\n\r\t");
-    public static readonly SearchValues<byte> Utf8NeedQuoteChars = SearchValues.Create(":\"\\{}[]()\n\r\t"u8);
-
-    public static readonly SearchValues<char> Utf16NeedEscapeChars = SearchValues.Create("\"\\\n\r\t");
-    public static readonly SearchValues<byte> Utf8NeedEscapeChars = SearchValues.Create("\"\\\n\r\t"u8);
+    public static readonly CompatibilitySearchValues CommaUtf16NeedQuoteCharsInArray = new(",:\"\\{}[]()\n\r\t");
+    public static readonly CompatibilitySearchValues CommaUtf16NeedQuoteCharsObjectKey = new(" ,:\"\\{}[]()\n\r\t");
+    public static readonly CompatibilitySearchValues PipeUtf16NeedQuoteCharsInArray = new("|:\"\\{}[]()\n\r\t");
+    public static readonly CompatibilitySearchValues PipeUtf16NeedQuoteCharsObjectKey = new(" |:\"\\{}[]()\n\r\t");
+    public static readonly CompatibilitySearchValues TabUtf16NeedQuoteCharsInArray = new(":\"\\{}[]()\n\r\t");
+    public static readonly CompatibilitySearchValues TabUtf16NeedQuoteCharsObjectKey = new(" :\"\\{}[]()\n\r\t");
+    public static readonly CompatibilitySearchValues Utf16NeedQuoteChars = new(":\"\\{}[]()\n\r\t");
+    public static readonly CompatibilitySearchValues Utf16NeedEscapeChars = new("\"\\\n\r\t");
+    public static readonly CompatibilitySearchValues CommaUtf8NeedQuoteCharsInArray = new(",:\"\\{}[]()\n\r\t");
+    public static readonly CompatibilitySearchValues CommaUtf8NeedQuoteCharsObjectKey = new(" ,:\"\\{}[]()\n\r\t");
+    public static readonly CompatibilitySearchValues PipeUtf8NeedQuoteCharsInArray = new("|:\"\\{}[]()\n\r\t");
+    public static readonly CompatibilitySearchValues PipeUtf8NeedQuoteCharsObjectKey = new(" |:\"\\{}[]()\n\r\t");
+    public static readonly CompatibilitySearchValues TabUtf8NeedQuoteCharsInArray = new(":\"\\{}[]()\n\r\t");
+    public static readonly CompatibilitySearchValues TabUtf8NeedQuoteCharsObjectKey = new(" :\"\\{}[]()\n\r\t");
+    public static readonly CompatibilitySearchValues Utf8NeedQuoteChars = new(":\"\\{}[]()\n\r\t");
+    public static readonly CompatibilitySearchValues Utf8NeedEscapeChars = new("\"\\\n\r\t");
 }
-
 internal enum QuoteScope
 {
     None, ObjectKey, InArray
@@ -74,7 +69,12 @@ internal enum QuoteScope
 public ref partial struct ToonWriter<TWriteBuffer>
     where TWriteBuffer : struct, IWriteBuffer
 {
-    ref TWriteBuffer writeBuffer;
+#if NETSTANDARD2_0
+    private unsafe void* writeBufferPointer;
+    private unsafe ref TWriteBuffer writeBuffer => ref Unsafe.AsRef<TWriteBuffer>(writeBufferPointer);
+#else
+    private ref TWriteBuffer writeBuffer;
+#endif
     readonly byte delimiter;
 
     RefStack<DepthState> currentState = new(0); // in-object / in-array
@@ -82,15 +82,23 @@ public ref partial struct ToonWriter<TWriteBuffer>
     public long BytesWritten => writeBuffer.BytesWritten;
     public Delimiter Delimiter => (Delimiter)delimiter;
 
-    public ToonWriter(ref TWriteBuffer writeBuffer)
+    public unsafe ToonWriter(ref TWriteBuffer writeBuffer)
     {
+#if NETSTANDARD2_0
+        writeBufferPointer = Unsafe.AsPointer(ref writeBuffer);
+#else
         this.writeBuffer = ref writeBuffer;
+#endif
         this.delimiter = (byte)Delimiter.Comma;
     }
 
-    public ToonWriter(ref TWriteBuffer writeBuffer, Delimiter delimiter)
+    public unsafe ToonWriter(ref TWriteBuffer writeBuffer, Delimiter delimiter)
     {
+#if NETSTANDARD2_0
+        writeBufferPointer = Unsafe.AsPointer(ref writeBuffer);
+#else
         this.writeBuffer = ref writeBuffer;
+#endif
         this.delimiter = (byte)delimiter;
     }
 
@@ -196,6 +204,9 @@ public ref partial struct ToonWriter<TWriteBuffer>
         TryWriteKeyValueSeparator();
         WriteDelimiter();
 
+#if NETSTANDARD2_0
+        WriteUtf16Core(value.ToString().AsSpan());
+#else
         // currently Enum doesn't support IUtf8SpanFormattable: https://github.com/dotnet/runtime/issues/81500
         Span<char> dest = stackalloc char[256];
         int charsWritten = 0;
@@ -214,6 +225,7 @@ public ref partial struct ToonWriter<TWriteBuffer>
         }
 
         WriteUtf16Core(dest.Slice(0, charsWritten));
+#endif
     }
 
     // TOON's escape character is similar as Json's one so JsonElement has already escaped string, don't need to escape.
@@ -256,7 +268,7 @@ public ref partial struct ToonWriter<TWriteBuffer>
     void FormatDouble(double value)
     {
         // NaN and Infinity round to null as TOON format.
-        if (!double.IsFinite(value))
+        if (!ToonCompatibility.IsFinite(value))
         {
             WriteRaw("null"u8);
             return;
@@ -339,7 +351,11 @@ public ref partial struct ToonWriter<TWriteBuffer>
         if (value.Length == 5 && value.SequenceEqual("false")) return true;
 
         // It looks like a number (e.g., "42", "-3.14", "1e-6", or "05" with leading zeros)
+#if NETSTANDARD2_0
+        if (double.TryParse(value.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out _)) return true;
+#else
         if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out _)) return true;
+#endif
 
         // Contains special characters
         // It contains the relevant delimiter (the active delimiter inside an array scope, or the document delimiter elsewhere)
@@ -354,7 +370,7 @@ public ref partial struct ToonWriter<TWriteBuffer>
             _ => ToonSearchValues.Utf16NeedQuoteChars,
         };
 
-        if (value.ContainsAny(searchValues)) return true;
+        if (searchValues.ContainsAny(value)) return true;
 
         return false;
     }
@@ -390,7 +406,7 @@ public ref partial struct ToonWriter<TWriteBuffer>
             _ => ToonSearchValues.Utf8NeedQuoteChars,
         };
 
-        if (value.ContainsAny(searchValues)) return true;
+        if (searchValues.ContainsAny(value)) return true;
 
         return false;
     }
@@ -399,7 +415,7 @@ public ref partial struct ToonWriter<TWriteBuffer>
     {
         while (value.Length > 0)
         {
-            var index = value.IndexOfAny(ToonSearchValues.Utf16NeedEscapeChars);
+            var index = ToonSearchValues.Utf16NeedEscapeChars.IndexOfAny(value);
             if (index == -1)
             {
                 WriteUtf16Core(value);
@@ -418,7 +434,7 @@ public ref partial struct ToonWriter<TWriteBuffer>
     {
         while (value.Length > 0)
         {
-            var index = value.IndexOfAny(ToonSearchValues.Utf8NeedEscapeChars);
+            var index = ToonSearchValues.Utf8NeedEscapeChars.IndexOfAny(value);
             if (index == -1)
             {
                 WriteRaw(value);
@@ -439,6 +455,23 @@ public ref partial struct ToonWriter<TWriteBuffer>
         {
             var buffer = writeBuffer.GetSpan(value.Length * 3);
 
+#if NETSTANDARD2_0
+            byte[] encoded;
+            try
+            {
+                encoded = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true)
+                    .GetBytes(value.ToArray());
+            }
+            catch (EncoderFallbackException)
+            {
+                ThrowInvalidUtf16();
+                return;
+            }
+
+            encoded.AsSpan().CopyTo(buffer);
+            value = default;
+            writeBuffer.Advance(encoded.Length);
+#else
             var status = Utf8.FromUtf16(value, buffer, out var charsRead, out var bytesWritten);
 
             if (status == OperationStatus.InvalidData)
@@ -448,6 +481,7 @@ public ref partial struct ToonWriter<TWriteBuffer>
 
             value = value.Slice(charsRead);
             writeBuffer.Advance(bytesWritten);
+#endif
         }
     }
 

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(UseLegacyRuntime)' == 'true'">
+    <DefineConstants>$(DefineConstants);LEGACY_RUNTIME</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(UseLegacyRuntime)' != 'true'">
+    <PackageReference Include="ToonEncoder" Version="1.0.0-local" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseLegacyRuntime)' == 'true'">
+    <PackageReference Include="ToonEncoder" Version="1.0.0-local" GeneratePathProperty="true" ExcludeAssets="compile;runtime" />
+    <PackageReference Include="SerializerFoundation" Version="0.2.1" />
+    <PackageReference Include="System.IO.Hashing" Version="10.0.1" />
+    <Reference Include="ToonEncoder">
+      <HintPath>$(PkgToonEncoder)\lib\netstandard2.0\ToonEncoder.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>
